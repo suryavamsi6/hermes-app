@@ -28,7 +28,7 @@ export interface ChatClient {
   stop(runId: string): Promise<unknown>;
 }
 
-export type StreamHandle = (() => void) & { nudge?: () => void };
+export type StreamHandle = (() => void) & { nudge?: () => void; quiet?: (background: boolean) => void };
 
 export type HermesTarget = HermesConfig & { profile?: string; model?: string; provider?: string };
 
@@ -145,7 +145,7 @@ export class HermesClient implements ChatClient {
       { sessionId, input, key: opts.key ?? newRunKey(), model: this.cfg.model, provider: this.cfg.provider, onAction,
         onNoRunsApi: () => { HermesClient.noRunsApi.add(base); legacy = this.streamSession(sessionId, input, onAction); } });
     const handle: StreamHandle = () => { run(); legacy?.(); };
-    handle.nudge = run.nudge;
+    handle.nudge = run.nudge; handle.quiet = run.quiet;
     return handle;
   }
 

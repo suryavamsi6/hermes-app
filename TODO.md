@@ -102,3 +102,20 @@ Not supported by Hermes, or left for later:
   surya@homelab.home.arpa --sudo` (SSH needs the 1Password agent:
   `SSH_AUTH_SOCK=~/.1password/agent.sock`), then the checks in docs/hermes-bridge.md and testing
   the app's Plugins / MCP Marketplace tabs against the real Hermes.
+
+
+## Notifications when the app is killed (v0.10.1 note)
+
+Today notifications are local: the app's own JS posts them while it is open or backgrounded. Once
+Hermes is swiped away (or Samsung's battery saver freezes it), nothing can post. Fix in v0.10.1: the
+Android 13 permission is now requested at launch (it used to be asked only from the background, where
+Android can't show the dialog, so it was never granted), plus Settings → Send test notification.
+
+Real push for a killed app needs a server-side sender. Plan, Hermes-compatible:
+1. Surya: create a Firebase project, add the Android app `home.surya.hermesmobile`, put
+   `google-services.json` in the app (android.googleServicesFile) and upload the FCM V1 service-account
+   key to Expo (`eas credentials`). Without this, Android can't get an Expo push token.
+2. App: `getExpoPushTokenAsync` after permission, POST it to the bridge (`/v1/push/register`).
+3. Bridge: store tokens (0600 file), watch each profile's Bot Chat session (poll `/api/sessions/{id}/messages`
+   every ~30 s, or a Hermes hook if one is added) and cron `last_run_at`, and send to
+   `https://exp.host/--/api/v2/push/send` for new assistant replies, pending approvals and failed routines.

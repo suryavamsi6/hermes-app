@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/app-state";
-import { clearBotNotifications, onNotificationTap } from "../src/notify";
+import { clearBotNotifications, ensureNotifications, onNotificationTap } from "../src/notify";
 import { colors } from "../src/ui/theme";
 import { loadPrefs } from "../src/prefs";
 import { AppLock } from "../src/ui/app-lock";
@@ -17,6 +17,8 @@ void loadPrefs();
  *  app (getLastNotificationResponseAsync), so a killed app still routes. */
 function NotificationTaps() {
   const { bots, approve } = useApp();
+  // Channel + Android 13 permission at launch, while in the foreground (the only time Android can ask).
+  useEffect(() => { void ensureNotifications(true); }, []);
   useEffect(() => onNotificationTap((t, dismiss) => {
     const bot = bots.find((b) => b.id === t.botId);
     if (!bot) return;

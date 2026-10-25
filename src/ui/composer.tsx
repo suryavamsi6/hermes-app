@@ -1,9 +1,9 @@
 // Composer: a round "+" (photos, camera, bot settings), then an "Ask <bot>" pill with the photo strip,
 // a dictation mic and one round action button: send when idle; while a reply is running it's
 // "add to this reply" (steer) if you typed something, else stop.
-import { ArrowUp, Camera, CornerDownRight, Image as ImageIcon, Mic, Plus, Settings2, Square, X } from "lucide-react-native";
+import { ArrowUp, Blocks, CornerDownRight, Image as ImageIcon, Mic, Square, X } from "lucide-react-native";
 import { memo, useCallback, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { setDraftText, useDraft } from "../app-state";
 import { type Attachment, MAX_ATTACHMENTS, pickImages, setAttachments, useAttachments } from "../attach";
 import { useDictation } from "./dictation";
@@ -29,7 +29,6 @@ type Props = {
 export const Composer = memo(function Composer({ botId, busy, onSend, onStop, onSteer, canSteer, onPlus, placeholder = "Ask Hermes", editing, onCancelEdit }: Props) {
   const text = useDraft(botId);
   const images = useAttachments(botId);
-  const [menu, setMenu] = useState(false);
   const [working, setWorking] = useState(false);
   const setText = (t: string) => setDraftText(botId, t);
   const current = useCallback(() => text, [text]);
@@ -39,7 +38,6 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
   const canSend = hasText || images.length > 0;
 
   const attach = async (from: "library" | "camera") => {
-    setMenu(false);
     try {
       setWorking(true);
       const got = await pickImages(from, MAX_ATTACHMENTS - images.length);
@@ -68,10 +66,12 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
         </View>
       ) : null}
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
-        <Pressable accessibilityLabel="Add photos or open bot options" onPress={() => setMenu(true)} hitSlop={6}
-          style={{ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: colors.floating, borderWidth: 1, borderColor: colors.border }}>
-          {working ? <ActivityIndicator color={colors.text} /> : <Plus size={24} color={colors.text} />}
-        </Pressable>
+        {onPlus ? (
+          <Pressable accessibilityLabel="Plugins" onPress={onPlus} hitSlop={6}
+            style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.control : colors.floating, borderWidth: 1, borderColor: colors.border })}>
+            <Blocks size={22} color={colors.text} />
+          </Pressable>
+        ) : null}
         <View style={{ flex: 1, minHeight: 48, backgroundColor: colors.floating, borderRadius: radii.pill, borderWidth: 1,
           borderColor: voice.listening ? colors.accentText : colors.border, paddingLeft: 18, paddingRight: 5, paddingVertical: 4 }}>
           {images.length ? (
@@ -91,6 +91,11 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
             <TextInput value={text} onChangeText={setText} placeholder={voice.listening ? "Listening…" : busy && canSteer ? "Add to this reply…" : placeholder}
               placeholderTextColor={colors.muted} accessibilityLabel={placeholder}
               multiline style={{ flex: 1, color: colors.text, fontFamily: font.regular, fontSize: 17, maxHeight: 140, paddingVertical: 9 }} />
+            <Pressable accessibilityLabel="Add a photo (long-press for the camera)" disabled={images.length >= MAX_ATTACHMENTS || working} hitSlop={4}
+              onPress={() => void attach("library")} onLongPress={() => void attach("camera")}
+              style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", opacity: images.length >= MAX_ATTACHMENTS ? 0.4 : 1 }}>
+              {working ? <ActivityIndicator color={colors.muted} /> : <ImageIcon size={20} color={colors.muted} />}
+            </Pressable>
             <Pressable accessibilityLabel={voice.listening ? "Stop voice typing" : "Voice typing"} onPress={voice.toggle} hitSlop={4}
               style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: voice.listening ? colors.controlActive : "transparent" }}>
               <Mic size={20} color={voice.listening ? colors.accentText : colors.muted} />
@@ -113,25 +118,7 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
           </View>
         </View>
       </View>
-      <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: colors.scrim, justifyContent: "flex-end" }} onPress={() => setMenu(false)}>
-          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: radii.card, borderTopRightRadius: radii.card, padding: 12, paddingBottom: 28, gap: 4 }}>
-            <MenuRow icon={<ImageIcon size={20} color={colors.text} />} label={images.length >= MAX_ATTACHMENTS ? `Photos (max ${MAX_ATTACHMENTS})` : "Photos"} disabled={images.length >= MAX_ATTACHMENTS} onPress={() => attach("library")} />
-            <MenuRow icon={<Camera size={20} color={colors.text} />} label="Camera" disabled={images.length >= MAX_ATTACHMENTS} onPress={() => attach("camera")} />
-            {onPlus ? <MenuRow icon={<Settings2 size={20} color={colors.text} />} label="Bot settings" onPress={() => { setMenu(false); onPlus(); }} /> : null}
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 });
 
-function MenuRow({ icon, label, onPress, disabled }: { icon: React.ReactNode; label: string; onPress: () => void; disabled?: boolean }) {
-  return (
-    <Pressable accessibilityLabel={label} disabled={disabled} onPress={onPress}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 14, paddingVertical: 14, borderRadius: radii.inset,
-        backgroundColor: pressed ? colors.control : "transparent", opacity: disabled ? 0.4 : 1 })}>
-      {icon}<Text style={type.body}>{label}</Text>
-    </Pressable>
-  );
-}

@@ -318,7 +318,8 @@ export default function BotChatScreen() {
     return () => setActive(null);
   }, [bot?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!bot && bots.length) router.replace("/"); }, [bot, bots]);
-  const onPlus = useCallback(() => { if (bot) router.push(`/bot-info/${bot.id}`); }, [bot]);
+  // The composer's left button opens this bot's Plugins screen directly (no intermediate sheet).
+  const onPlus = useCallback(() => { if (bot) router.push(`/plugins/${bot.id}`); }, [bot]);
   if (!bot) return <View style={{ flex: 1, backgroundColor: colors.canvas }} />;
   const busy = chat.busy;
   const m = menu?.role === "assistant" ? (menu as AssistantTurn) : undefined;

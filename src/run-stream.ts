@@ -42,8 +42,13 @@ export type RunOptions = {
   pollMs?: number;
   /** Give up polling a run that is still going after this long (it may be waiting on something). */
   pollMaxMs?: number;
+  /** Only report "reconnecting" once a connection problem has lasted this long (default 3 s), so a
+   *  short blip, or the socket Android drops when the app goes to the background, stays invisible. */
+  reconnectDelayMs?: number;
 };
-export type RunHandle = (() => void) & { nudge: () => void };
+/** Call to abort. nudge(): back in the foreground. quiet(on): the app is in the background, so
+ *  connection trouble is expected and never shown as "Reconnecting". */
+export type RunHandle = (() => void) & { nudge: () => void; quiet: (on: boolean) => void };
 
 const TERMINAL = new Set(["completed", "failed", "cancelled", "interrupted"]);
 const DEFAULT_BACKOFF = [1000, 2000, 4000, 8000, 15000, 15000, 15000, 15000, 15000];
@@ -75,11 +80,22 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
     outer.signal.addEventListener("abort", done);
   });
 
-  let reconnecting = false;
+  // "Reconnecting" is debounced: trouble must persist reconnectDelayMs (and the app must be in the
+  // foreground) before the turn shows it; recovering earlier shows nothing at all.
+  const reconnectDelayMs = o.reconnectDelayMs ?? 3000;
+  let shown = false, troubled = false, background = false;
+  let showTimer: ReturnType<typeof setTimeout> | undefined;
+  const show = () => { showTimer = undefined; if (troubled && !background && !shown && !outer.signal.aborted) { shown = true; o.onAction({ type: "reconnecting" }); } };
   const setReconnecting = (on: boolean) => {
-    if (on === reconnecting) return;
-    reconnecting = on;
-    o.onAction({ type: on ? "reconnecting" : "reconnected" });
+    if (on) {
+      if (troubled) return;
+      troubled = true;
+      if (reconnectDelayMs <= 0) show(); else showTimer = setTimeout(show, reconnectDelayMs);
+      return;
+    }
+    troubled = false;
+    clearTimeout(showTimer); showTimer = undefined;
+    if (shown) { shown = false; o.onAction({ type: "reconnected" }); }
   };
 
   async function admit(): Promise<string> {
@@ -233,7 +249,12 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
     o.onAction({ type: "done", status: "failed", code: "connection_lost", error: `Couldn't reach Hermes (${e?.message ?? e})` });
   });
 
-  const abort = (() => { outer.abort(); wake?.(); }) as RunHandle;
+  const abort = (() => { clearTimeout(showTimer); outer.abort(); wake?.(); }) as RunHandle;
+  abort.quiet = (on: boolean) => {
+    background = on;
+    if (on) { clearTimeout(showTimer); showTimer = undefined; if (shown) { shown = false; o.onAction({ type: "reconnected" }); } }
+    else if (troubled && !shown && !showTimer) showTimer = setTimeout(show, reconnectDelayMs);
+  };
   /** App came back to the foreground: skip any backoff wait, and drop a stream that has gone quiet
    *  (Hermes sends a keepalive every 10 s, so 12 s of silence means the socket died while asleep). */
   abort.nudge = () => {

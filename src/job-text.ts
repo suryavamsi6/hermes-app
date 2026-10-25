@@ -73,5 +73,17 @@ export function toJob(j: any): Job {
     lastRun: fmt(job.last_run_at ?? job.last_run),
     nextRun: fmt(job.next_run_at ?? job.next_run),
     lastStatus: readable(job.last_status) || (state === "error" ? "error" : undefined) || undefined,
+    // Hermes keeps the last run's error and the last delivery error (cron/jobs.py).
+    lastError: readable(job.last_error) || readable(job.last_delivery_error) || undefined,
   };
+}
+
+/** A routine whose last run failed (paused ones don't count: they won't run again). */
+export const isFailing = (j: Job) => !j.paused && (/error|fail/i.test(j.lastStatus ?? "") || (!!j.lastError && !/^ok|success/i.test(j.lastStatus ?? "")));
+
+/** Where Home's "routine failed" line goes: straight to that routine when there's one, else the
+ *  routines list showing only the failed ones. */
+export function failedRoutinesLink(failing: { botId: string; jobId: string }[]): string {
+  if (failing.length === 1) return `/routines?bot=${encodeURIComponent(failing[0].botId)}&job=${encodeURIComponent(failing[0].jobId)}`;
+  return "/routines?failed=1";
 }

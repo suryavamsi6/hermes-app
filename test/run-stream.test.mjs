@@ -85,7 +85,7 @@ function send(server, extra = {}) {
   return new Promise((resolve) => {
     const handle = followRun(
       { url: (p) => `http://hermes.test${p}`, headers: (x = {}) => ({ Authorization: "Bearer k", ...x }), fetch: (u, i) => server.fetch(u, i) },
-      { sessionId: "s1", input: "hi", key: "turn-1", backoff: [5, 5, 5, 5], stallMs: 60, pollMs: 10, ...extra,
+      { sessionId: "s1", input: "hi", key: "turn-1", backoff: [5, 5, 5, 5], stallMs: 60, pollMs: 10, reconnectDelayMs: 0, ...extra,
         onNoRunsApi: () => resolve({ actions, noRuns: true, handle }),
         onAction: (a) => { actions.push(a); if (a.type === "done") setTimeout(() => resolve({ actions, handle }), 20); } });
     extra.onHandle?.(handle);
@@ -197,4 +197,14 @@ test("nudge skips the reconnect wait when the app returns to the foreground", as
   const { actions } = await p;
   assert.strictEqual(textOf(actions), "Hello there");
   assert.ok(Date.now() - started < 2000, "waited for the backoff instead of the nudge");
+});
+
+test("a short drop never shows Reconnecting (debounced), and nothing shows while the app is in the background", async () => {
+  const quick = await send(new FakeHermes({ dropAfter: 2 }), { reconnectDelayMs: 2000 });
+  assert.strictEqual(textOf(quick.actions), "Hello there");
+  assert.ok(!quick.actions.some((a) => a.type === "reconnecting" || a.type === "reconnected"));
+  let handle;
+  const bg = await send(new FakeHermes({ dropAfter: 2 }), { reconnectDelayMs: 0, onHandle: (h) => { handle = h; h.quiet(true); } });
+  assert.ok(handle && !bg.actions.some((a) => a.type === "reconnecting"));
+  assert.deepStrictEqual(done(bg.actions).map((a) => a.status), ["completed"]);
 });

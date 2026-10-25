@@ -3,9 +3,11 @@
 import Constants from "expo-constants";
 import { router } from "expo-router";
 import { Bell, ExternalLink, Lock, Server, Star } from "lucide-react-native";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, Text, View } from "react-native";
 import { useApp } from "../src/app-state";
+import { notificationStatus, openNotificationSettings, sendTestNotification, type NotifStatus } from "../src/notify";
+import { describeNotifStatus } from "../src/notify-status";
 import { setPrefs, usePrefs } from "../src/prefs";
 import { canUseAppLock } from "../src/ui/app-lock";
 import { Avatar, Chip, Row, Screen, Section, Toggle } from "../src/ui/kit";
@@ -20,6 +22,10 @@ export default function Preferences() {
   const { config, demo, bots, primaryId, setPrimary, backend } = useApp();
   const p = usePrefs((x) => x);
   const [lockNote, setLockNote] = useState<string | null>(null);
+  const [notif, setNotif] = useState<NotifStatus | null>(null);
+  const refreshNotif = useCallback(() => { void notificationStatus().then(setNotif); }, []);
+  useEffect(refreshNotif, [refreshNotif]);
+  const notifLine = describeNotifStatus(notif);
   const host = config?.baseUrl ? config.baseUrl.replace(/^https?:\/\//, "") : demo ? "Demo mode" : "Not connected";
   const bridge = backend?.supports("createBot") ? "hermes-bridge connected" : "no hermes-bridge";
   const version = `${Constants.expoConfig?.version ?? "?"} (${Constants.expoConfig?.android?.versionCode ?? "?"})`;
@@ -41,8 +47,11 @@ export default function Preferences() {
         </View>
       </Section>
 
-      <Section title="Notifications" footer="Approvals still come through during quiet hours, because a run is waiting on you. Each bot can be muted or tuned in its settings.">
-        <Row icon={<Bell size={18} color={colors.muted} />} title="Replies" right={<Toggle value={p.notifyReplies} onChange={(v) => setPrefs({ notifyReplies: v })} />} />
+      <Section title="Notifications" footer="Notifications come from the app itself: they work while Hermes is open or in the background, not after it's swiped away. On Samsung, set Hermes's battery use to Unrestricted so Android doesn't freeze it. Approvals still come through during quiet hours.">
+        <Row icon={<Bell size={18} color={notifLine.ok ? colors.muted : colors.danger} />} title="Send test notification" detail={notifLine.text}
+          onPress={() => { void sendTestNotification().then(setNotif); }} />
+        <Row title="Android notification & battery settings" detail="Permission, channel, battery: Unrestricted" onPress={() => { openNotificationSettings(); setTimeout(refreshNotif, 1500); }} />
+        <Row title="Replies" right={<Toggle value={p.notifyReplies} onChange={(v) => setPrefs({ notifyReplies: v })} />} />
         <Row title="Approvals" right={<Toggle value={p.notifyApprovals} onChange={(v) => setPrefs({ notifyApprovals: v })} />} />
         <Row title="Errors" right={<Toggle value={p.notifyErrors} onChange={(v) => setPrefs({ notifyErrors: v })} />} />
         <Row title="Hide message text" detail="Notifications say 'New reply' only" right={<Toggle value={p.hidePreviews} onChange={(v) => setPrefs({ hidePreviews: v })} />} last />

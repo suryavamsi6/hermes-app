@@ -267,9 +267,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const sub = AppState.addEventListener?.("change", (st) => {
       const was = appActive.current;
       appActive.current = st === "active";
-      if (st !== "active") { flushDrafts(); return; }
+      // Backgrounded: Android may drop the sockets; that's expected, so streams go quiet (no
+      // "Reconnecting") and resume silently when the app is back.
+      if (st !== "active") { flushDrafts(); Object.values(aborts.current).forEach((h) => h?.quiet?.(true)); return; }
       if (was) return;
-      Object.values(aborts.current).forEach((h) => h?.nudge?.());
+      Object.values(aborts.current).forEach((h) => { h?.quiet?.(false); h?.nudge?.(); });
       const id = active.current; const bot = id ? bots.find((b) => b.id === id) : undefined;
       if (bot) void syncChat(bot);
     });

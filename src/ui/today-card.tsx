@@ -6,6 +6,7 @@ import { type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { useApp, useApprovalBots, useBusyCount, useTotalUnread } from "../app-state";
+import { failedRoutinesLink, isFailing } from "../job-text";
 import { useLoad } from "../use-load";
 import { enter } from "./motion";
 import { colors, radii, type } from "./theme";
@@ -16,13 +17,14 @@ export function TodayCard() {
   const approvalIds = useApprovalBots().split(",").filter(Boolean);
   // Routine results: one light call per bot, once per Home mount.
   const failing = useLoad(backend && bots.length && bots.length <= 12 ? async () => {
-    const all = await Promise.all(bots.map(async (b) => { try { return (await backend.listJobs(b)).filter((j) => !j.paused && /error|fail/i.test(j.lastStatus ?? "")).length; } catch { return 0; } }));
-    return all.reduce((a, n) => a + n, 0);
+    const all = await Promise.all(bots.map(async (b) => { try { return (await backend.listJobs(b)).filter(isFailing).map((j) => ({ botId: b.id, jobId: j.id })); } catch { return []; } }));
+    return all.flat();
   } : null, [backend, bots.length]);
   const lines: { key: string; icon: ReactNode; text: string; go: () => void }[] = [];
   if (approvalIds.length) lines.push({ key: "a", icon: <ShieldQuestion size={18} color={colors.warning} />, text: `${approvalIds.length === 1 ? (bots.find((b) => b.id === approvalIds[0])?.name ?? "A bot") : `${approvalIds.length} bots`} waiting for your OK`, go: () => router.push(`/bot/${approvalIds[0]}`) });
   if (unread) lines.push({ key: "u", icon: <MessageCircle size={18} color={colors.accentText} />, text: `${unread} unread ${unread === 1 ? "reply" : "replies"}`, go: () => {} });
-  if (failing.data) lines.push({ key: "r", icon: <AlertTriangle size={18} color={colors.danger} />, text: `${failing.data} routine${failing.data === 1 ? "" : "s"} failed last time`, go: () => router.push("/routines") });
+  const failed = failing.data ?? [];
+  if (failed.length) lines.push({ key: "r", icon: <AlertTriangle size={18} color={colors.danger} />, text: `${failed.length} routine${failed.length === 1 ? "" : "s"} failed last time`, go: () => router.push(failedRoutinesLink(failed) as any) });
   if (busy) lines.push({ key: "b", icon: <CalendarClock size={18} color={colors.muted} />, text: `${busy} ${busy === 1 ? "bot is" : "bots are"} working`, go: () => {} });
   if (!lines.length) return null;
   return (

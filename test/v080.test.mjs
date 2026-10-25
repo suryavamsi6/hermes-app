@@ -138,3 +138,22 @@ test("activity log and plan come from session tool calls", () => {
   assert.deepStrictEqual(m.currentPlan(raw).map((p) => p.status), ["completed", "in_progress"]);
   assert.strictEqual(m.currentPlan({ data: [] }), null);
 });
+
+test("v0.10.1: a failed routine carries its error and Home links straight to it", () => {
+  const j = m.toJob({ id: "j1", name: "Brief", prompt: "x", enabled: true, last_status: "error", last_error: "RuntimeError: provider timeout" });
+  assert.strictEqual(j.lastError, "RuntimeError: provider timeout");
+  assert.ok(m.isFailing(j));
+  assert.ok(!m.isFailing({ ...j, paused: true }));
+  assert.ok(!m.isFailing(m.toJob({ id: "ok", name: "n", prompt: "x", last_status: "ok" })));
+  assert.strictEqual(m.failedRoutinesLink([{ botId: "default", jobId: "j 1" }]), "/routines?bot=default&job=j%201");
+  assert.strictEqual(m.failedRoutinesLink([{ botId: "a", jobId: "1" }, { botId: "b", jobId: "2" }]), "/routines?failed=1");
+});
+
+test("v0.10.1: Settings explains why notifications can't show", () => {
+  assert.ok(m.describeNotifStatus({ permission: "granted", canAskAgain: true, channel: "on" }).ok);
+  const blocked = m.describeNotifStatus({ permission: "denied", canAskAgain: false, channel: "on" });
+  assert.ok(!blocked.ok && blocked.fixInSettings);
+  const chOff = m.describeNotifStatus({ permission: "granted", canAskAgain: true, channel: "off" });
+  assert.ok(!chOff.ok && /channel/.test(chOff.text));
+  assert.match(m.describeNotifStatus({ permission: "undetermined", canAskAgain: true, channel: "missing" }).text, /allow/);
+});
