@@ -1,25 +1,29 @@
 // The live status line while Hermes works: a small thinking face and a softly pulsing phrase
 // ("Searching the web", "Running git status") instead of bare typing dots. Each new phrase
-// crossfades in (keyed by its text); everything runs on the UI thread at 120 Hz.
+// fades in once; the pulse runs on the UI thread.
+//
+// No Reanimated layout animations (entering/exiting) here: this row lives inside the chat's inverted
+// FlatList, and on Android an `exiting` view keeps its removed ancestors alive as a "ghost" drawn over
+// the list until the animation ends. When the reply row was replaced mid-animation (stream finished,
+// history re-synced) the ghost of the whole reply bubble stuck on top of the chat (v0.10.4 fix).
 import { memo } from "react";
 import { View } from "react-native";
 import Animated from "react-native-reanimated";
 import type { Bot } from "../backend";
 import { Avatar } from "./kit";
-import { enter, leave, usePulse } from "./motion";
+import { Rise, usePulse } from "./motion";
 import { colors, type } from "./theme";
 
 export const ActivityRow = memo(function ActivityRow({ bot, text }: { bot: Bot; text: string }) {
   const pulse = usePulse();
   return (
-    <Animated.View entering={enter.fade} exiting={leave.fade} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 4, paddingVertical: 2 }}
-      accessibilityLiveRegion="polite" accessibilityLabel={text}>
+    <Rise dy={0} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 4, paddingVertical: 2 }}>
       <Avatar bot={bot} size={24} mood="thinking" badge={false} />
       <View style={{ flexShrink: 1, flexGrow: 1 }}>
         <Animated.View style={pulse}>
-          <Animated.Text key={text} entering={enter.fade} numberOfLines={1} style={[type.body, { color: colors.muted }]}>{text}</Animated.Text>
+          <Animated.Text numberOfLines={1} accessibilityLiveRegion="polite" style={[type.body, { color: colors.muted }]}>{text}</Animated.Text>
         </Animated.View>
       </View>
-    </Animated.View>
+    </Rise>
   );
 });

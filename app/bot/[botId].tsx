@@ -97,7 +97,7 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highligh
     <Rise play={fresh} style={{ gap: 8, alignItems: "flex-start" }}>
       {t.steps.length ? <View style={{ paddingLeft: 4 }}><StepsRow steps={t.steps} /></View> : null}
       {activity ? <ActivityRow bot={bot} text={showStatus ? activity : "Working"} /> : null}
-      {t.approval ? <Reanimated.View entering={enter.pop} exiting={leave.fade}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} onEdit={(d) => setDraftText(bot.id, `Don't run that. Instead:\n${d}`)} /></Reanimated.View> : null}
+      {t.approval ? <Rise scale={0.96}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} onEdit={(d) => setDraftText(bot.id, `Don't run that. Instead:\n${d}`)} /></Rise> : null}
       {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>↪ You added: {s}</Text>) : null}
       {t.text ? (
         <SwipeQuote onQuote={() => onQuote(turn)}>
