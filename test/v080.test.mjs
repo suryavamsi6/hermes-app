@@ -157,3 +157,12 @@ test("v0.10.1: Settings explains why notifications can't show", () => {
   assert.ok(!chOff.ok && /channel/.test(chOff.text));
   assert.match(m.describeNotifStatus({ permission: "undetermined", canAskAgain: true, channel: "missing" }).text, /allow/);
 });
+
+test("v0.10.5: the loading skeleton shows only for a first load with nothing to show, never with messages", () => {
+  assert.strictEqual(m.chatBody({ loaded: false, turns: [] }), "skeleton");
+  assert.strictEqual(m.chatBody({ loaded: false, turns: [{}] }), "list");             // messages win, even mid-refresh
+  assert.strictEqual(m.chatBody({ loaded: false, error: "boom", turns: [] }), "empty"); // error + Retry, not a stuck placeholder
+  assert.strictEqual(m.chatBody({ loaded: true, turns: [] }), "empty");
+  assert.strictEqual(m.chatBody({ loaded: true, turns: [{}] }), "list");
+  assert.strictEqual(m.chatBody({ loaded: false, turns: [] }, true), "setup");
+});

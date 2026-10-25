@@ -5,25 +5,26 @@
 // Date dividers between days; long-press a message for reactions, time, copy/share/quote/read aloud/
 // edit; swipe a bubble left to quote it. The "…" menu holds search, the model picker and export.
 import { router, useLocalSearchParams } from "expo-router";
-import { Phone, ArrowDown, ChevronDown, ChevronLeft, ChevronUp, Cpu, Ellipsis, FileDown, Loader, RotateCcw, Search, Settings2, X } from "lucide-react-native";
+import { Phone, ArrowDown, ChevronDown, ChevronLeft, ChevronUp, Cpu, Ellipsis, FileDown, FileText, Loader, RotateCcw, Search, Settings2, X } from "lucide-react-native";
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Animated, FlatList, Image, KeyboardAvoidingView, type NativeScrollEvent, type NativeSyntheticEvent, PanResponder, Platform, Pressable, Share, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { restoreDraft, setDraftText, useApp, useBot, useChat, useMood, useReaction, useReconnecting } from "../../src/app-state";
 import type { Bot } from "../../src/backend";
 import type { AssistantTurn, Turn, UserTurn } from "../../src/chat-model";
-import type { Attachment } from "../../src/attach";
+import type { Attachment, FileAttachment } from "../../src/attach";
 import { canSteer as steerable, chatToMarkdown, editableLast, findMatches, runningTurn } from "../../src/chat-tools";
 import { clearBotNotifications } from "../../src/notify";
 import { ApprovalCard } from "../../src/ui/approval-card";
-import { buildRows, type ChatRow } from "../../src/ui/chat-rows";
+import { buildRows, chatBody, type ChatRow } from "../../src/ui/chat-rows";
 import { Composer } from "../../src/ui/composer";
 import { activityLine } from "../../src/ui/activity";
 import { Avatar, Chip } from "../../src/ui/kit";
 import { ActivityRow } from "../../src/ui/activity-row";
 import { ModelPicker } from "../../src/ui/model-picker";
 import { usePrefs } from "../../src/prefs";
-import { enter, leave, PressScale, Rise } from "../../src/ui/motion";
+import { enter, leave, PressScale, Rise, Skeleton } from "../../src/ui/motion";
+import { NoticeChip } from "../../src/ui/notice-chip";
 import Reanimated from "react-native-reanimated";
 import { Markdown, MarkedText } from "../../src/ui/markdown";
 import { MessageMenu, quoteOf } from "../../src/ui/message-menu";
@@ -69,6 +70,7 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highligh
   const { react, approve } = useApp();
   const reaction = useReaction(turn.id);
   const longPress = () => onLong(turn);
+  if (turn.role === "user" && turn.notice) return <NoticeChip title={turn.notice.title} body={turn.notice.body} time={time} />;
   if (turn.role === "user") return <Rise play={fresh}><UserRow t={turn} time={time} reaction={reaction} longPress={longPress} unreact={() => react(turn.id, null)} quote={() => onQuote(turn)} highlight={highlight} /></Rise>;
   const t = turn as AssistantTurn;
   const activity = activityLine(t);
@@ -135,6 +137,16 @@ function UserRow({ t, time, reaction, longPress, unreact, quote, highlight }: { 
               {t.images.map((u) => <Image key={u} source={{ uri: u }} resizeMethod="resize" style={{ width: 120, height: 120, borderRadius: radii.inset }} />)}
             </View>
           ) : t.imageCount ? <Text style={[type.label, { marginBottom: t.text ? 6 : 0 }]}>📷 {t.imageCount === 1 ? "Photo" : `${t.imageCount} photos`}</Text> : null}
+          {t.files?.length ? (
+            <View style={{ gap: 6, marginBottom: t.text ? 8 : 0 }}>
+              {t.files.map((f, i) => (
+                <View key={f + i} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: radii.inset, backgroundColor: colors.control }}>
+                  <FileText size={16} color={colors.muted} />
+                  <Text numberOfLines={1} style={[type.bodySm, { flexShrink: 1, color: colors.text }]}>{f}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           {t.text ? <MarkedText text={t.text} highlight={highlight} /> : null}
         </Pressable>
       </SwipeQuote>
@@ -194,6 +206,25 @@ const Header = memo(function Header({ bot, top, onMenu }: { bot: Bot; top: numbe
   );
 });
 
+/** First load: a few calm placeholder bubbles where the conversation will appear (not over it). */
+function ChatSkeleton() {
+  return (
+    <View accessibilityLabel="Loading the chat" style={{ flex: 1, justifyContent: "flex-end", paddingHorizontal: 14, paddingBottom: 16, gap: 18 }}>
+      <Skeleton width="58%" height={44} radius={radii.bubble} style={{ alignSelf: "flex-end" }} />
+      <View style={{ gap: 8 }}>
+        <Skeleton width="86%" height={16} />
+        <Skeleton width="72%" height={16} />
+        <Skeleton width="40%" height={16} />
+      </View>
+      <Skeleton width="46%" height={44} radius={radii.bubble} style={{ alignSelf: "flex-end" }} />
+      <View style={{ gap: 8 }}>
+        <Skeleton width="80%" height={16} />
+        <Skeleton width="55%" height={16} />
+      </View>
+    </View>
+  );
+}
+
 function EmptyChat({ bot, error, onPick, onRetry }: { bot: Bot; error?: string; onPick: (s: string) => void; onRetry: () => void }) {
   const mood = useMood(bot.id);
   return (
@@ -239,6 +270,7 @@ export default function BotChatScreen() {
   const list = useRef<FlatList<ChatRow>>(null);
   const chat = useChat(bot?.id);
   const turns = chat.turns;
+  const body = chatBody(chat, bot?.needsKey);
   const rows = useMemo(() => buildRows(turns), [turns]);
   const showTimes = usePrefs((p) => p.showTimestamps);
   // Only messages that arrive while the chat is open animate in (never history), each once. Keyed by
@@ -309,7 +341,7 @@ export default function BotChatScreen() {
   const render = useCallback(({ item }: { item: ChatRow }) => !bot ? null : item.kind === "day" ? <DayDivider label={item.label} /> : (
     <RowBoundary><TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} time={showTimes ? item.time : undefined} fresh={isFresh(item.turn)} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} /></RowBoundary>
   ), [bot, lastAssistant?.id, onLong, onQuote, onRetry, searching, query, showTimes]);
-  const onSend = useCallback((t: string, images: Attachment[] = []) => { if (!bot) return; setEditing(null); if (awayRef.current) jump(); void send(bot, t, images); }, [bot, send, jump]);
+  const onSend = useCallback((t: string, images: Attachment[] = [], files: FileAttachment[] = []) => { if (!bot) return; setEditing(null); if (awayRef.current) jump(); void send(bot, t, images, files); }, [bot, send, jump]);
   const onSteer = useCallback(async (t: string) => {
     if (!bot) return false;
     try { await steer(bot, t); return true; } catch (e: any) { Alert.alert("Couldn't add that", String(e?.detail ?? e?.message ?? e)); return false; }
@@ -341,7 +373,7 @@ export default function BotChatScreen() {
           <SearchBar query={query} setQuery={setQuery} position={[matches.length ? Math.min(hit + 1, matches.length) : 0, matches.length]}
             onPrev={() => goMatch(hit - 1)} onNext={() => goMatch(hit + 1)} onClose={() => { setSearching(false); setQuery(""); }} />
         ) : null}
-        {bot.needsKey ? <SetupChat bot={bot} /> : turns.length === 0 ? (
+        {body === "setup" ? <SetupChat bot={bot} /> : body === "skeleton" ? <ChatSkeleton /> : body === "empty" ? (
           <EmptyChat bot={bot} error={chat.error} onPick={onSend} onRetry={() => void loadChat(bot, true)} />
         ) : (
           <View style={{ flex: 1 }}>

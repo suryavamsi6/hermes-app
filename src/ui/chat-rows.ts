@@ -64,3 +64,14 @@ export function buildRows(turns: Turn[], now = Date.now()): ChatRow[] {
   });
   return rows.reverse();
 }
+
+/** What the chat area shows. The skeleton appears only while the first load is pending and there is
+ *  nothing to show yet; it is rendered *instead of* the list (never over it) and goes away on
+ *  success, error, or the first message. */
+export type ChatBody = "setup" | "skeleton" | "empty" | "list";
+export function chatBody(c: { loaded: boolean; error?: string; turns: unknown[] }, needsKey?: boolean): ChatBody {
+  if (needsKey) return "setup";
+  if (c.turns.length) return "list";
+  if (!c.loaded && !c.error) return "skeleton";
+  return "empty";
+}

@@ -3,17 +3,17 @@
     "name": "Hermes",
     "slug": "surya",
     "scheme": "hermes",
-    "version": "0.10.4",
+    "version": "0.10.5",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#000000",
+    "backgroundColor": "#09090b",
     "android": {
       "package": "home.surya.hermesmobile",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#000000"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#09090b"
       },
-      "versionCode": 20,
+      "versionCode": 21,
       "allowBackup": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
@@ -53,6 +53,15 @@
         "expo-notifications",
         {
           "color": "#09090b"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 96,
+          "resizeMode": "contain",
+          "backgroundColor": "#09090b"
         }
       ]
     ],

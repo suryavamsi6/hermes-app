@@ -1,12 +1,13 @@
 // Small shared building blocks so every screen keeps the same dark, rounded look.
 import { router } from "expo-router";
-import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react-native";
-import { memo, useEffect, useRef, type ReactNode } from "react";
-import { Animated, Pressable, ScrollView, Switch, Text, TextInput, View, type TextInputProps } from "react-native";
+import { AlertCircle, ChevronLeft, ChevronRight, Sparkles } from "lucide-react-native";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, type TextInputProps } from "react-native";
+import { tapHaptic } from "./haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Bot } from "../backend";
 import { BotFace, type FaceMood } from "./bot-face";
-import { colors, font, radii, type } from "./theme";
+import { colors, font, hit, radii, type } from "./theme";
 
 /** A bot's animated face (see bot-face.tsx). Seed = bot id, so personality stays stable on rename. */
 export const Avatar = memo(function Avatar({ bot, size = 36, busy = false, mood, animate = true, badge = true }: {
@@ -39,11 +40,12 @@ export function Screen({ title, subtitle, right, children, scroll = true }: { ti
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }}>
       <View style={{ flexDirection: "row", alignItems: "center", height: 52, paddingHorizontal: 8, gap: 4 }}>
-        <Pressable hitSlop={10} accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} style={{ padding: 6 }}>
+        <Pressable hitSlop={6} accessibilityRole="button" accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+          style={({ pressed }) => ({ width: hit, height: hit, borderRadius: hit / 2, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.control : "transparent" })}>
           <ChevronLeft size={24} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={type.title} numberOfLines={1}>{title}</Text>
+          <Text accessibilityRole="header" style={type.title} numberOfLines={1}>{title}</Text>
           {subtitle ? <Text style={type.label} numberOfLines={1}>{subtitle}</Text> : null}
         </View>
         {right}
@@ -59,8 +61,8 @@ export function Section({ title, children, footer }: { title?: string; children:
   return (
     <View style={{ gap: 8 }}>
       {title ? <Text style={[type.label, { paddingHorizontal: 4, textTransform: "uppercase", letterSpacing: 0.6, fontSize: 11 }]}>{title}</Text> : null}
-      <View style={{ backgroundColor: colors.surface, borderRadius: radii.card, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>{children}</View>
-      {footer ? <Text style={[type.label, { paddingHorizontal: 4 }]}>{footer}</Text> : null}
+      <View style={{ backgroundColor: colors.surface, borderRadius: radii.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong, overflow: "hidden" }}>{children}</View>
+      {footer ? <Text style={[type.caption, { paddingHorizontal: 4, color: colors.muted }]}>{footer}</Text> : null}
     </View>
   );
 }
@@ -69,8 +71,9 @@ export function Row({ icon, title, detail, onPress, right, last, danger }: {
   icon?: ReactNode; title: string; detail?: string; onPress?: () => void; right?: ReactNode; last?: boolean; danger?: boolean;
 }) {
   return (
-    <Pressable disabled={!onPress} onPress={onPress} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12,
-      backgroundColor: pressed ? colors.control : "transparent", borderBottomWidth: last ? 0 : 1, borderBottomColor: colors.border })}>
+    <Pressable disabled={!onPress} onPress={onPress} accessibilityRole={onPress ? "button" : undefined} accessibilityLabel={detail ? `${title}, ${detail}` : title}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52, paddingHorizontal: 14, paddingVertical: 12,
+      backgroundColor: pressed ? colors.control : "transparent", borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong })}>
       {icon}
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={[type.body, { fontSize: 15, lineHeight: 21 }, danger && { color: colors.danger }]} numberOfLines={1}>{title}</Text>
@@ -82,16 +85,19 @@ export function Row({ icon, title, detail, onPress, right, last, danger }: {
 }
 
 export function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return <Switch value={value} onValueChange={onChange} disabled={disabled} trackColor={{ true: colors.success, false: colors.controlActive }} thumbColor="#ffffff" />;
+  return <Switch value={value} onValueChange={(v) => { tapHaptic(); onChange(v); }} disabled={disabled} accessibilityRole="switch"
+    trackColor={{ true: colors.success, false: colors.controlActive }} thumbColor="#ffffff" />;
 }
 
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 6 }}>
       <Text style={type.label}>{label}</Text>
-      <TextInput placeholderTextColor={colors.dim} autoCorrect={false} {...props}
-        style={[{ backgroundColor: colors.control, color: colors.text, fontFamily: font.regular, fontSize: 15, borderRadius: radii.inset,
-          borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12 }, props.multiline && { minHeight: 96, textAlignVertical: "top" }, props.style]} />
+      <TextInput placeholderTextColor={colors.dim} autoCorrect={false} accessibilityLabel={label} {...props}
+        onFocus={(e) => { setFocused(true); props.onFocus?.(e); }} onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
+        style={[{ backgroundColor: colors.control, color: colors.text, fontFamily: font.regular, fontSize: 15, borderRadius: radii.inset, minHeight: 48,
+          borderWidth: 1, borderColor: focused ? colors.muted : colors.border, paddingHorizontal: 14, paddingVertical: 12 }, props.multiline && { minHeight: 96, textAlignVertical: "top" }, props.style]} />
     </View>
   );
 }
@@ -100,7 +106,9 @@ export function Button({ title, onPress, kind = "primary", disabled }: { title: 
   const bg = kind === "primary" ? colors.action : kind === "danger" ? "rgba(255,96,105,0.14)" : colors.control;
   const fg = kind === "primary" ? colors.actionForeground : kind === "danger" ? colors.danger : colors.text;
   return (
-    <Pressable disabled={disabled} onPress={onPress} style={({ pressed }) => ({ backgroundColor: bg, borderRadius: radii.chip, paddingVertical: 13, paddingHorizontal: 18, alignItems: "center", opacity: disabled ? 0.45 : pressed ? 0.75 : 1 })}>
+    <Pressable disabled={disabled} onPress={() => { if (kind === "primary") tapHaptic(); onPress(); }} accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ disabled: !!disabled }}
+      style={({ pressed }) => ({ backgroundColor: bg, borderRadius: radii.chip, minHeight: 48, paddingVertical: 13, paddingHorizontal: 18, alignItems: "center", justifyContent: "center",
+        opacity: disabled ? 0.45 : pressed ? 0.85 : 1, transform: [{ scale: pressed && !disabled ? 0.98 : 1 }] })}>
       <Text style={{ fontFamily: font.semibold, fontSize: 15, color: fg }}>{title}</Text>
     </Pressable>
   );
@@ -108,8 +116,9 @@ export function Button({ title, onPress, kind = "primary", disabled }: { title: 
 
 export function Chip({ label, selected, onPress }: { label: string; selected?: boolean; onPress?: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.chip, borderWidth: 1,
-      borderColor: selected ? colors.text : colors.borderStrong, backgroundColor: selected ? colors.text : "transparent" }}>
+    <Pressable onPress={onPress && (() => { tapHaptic(); onPress(); })} hitSlop={4} accessibilityRole="button" accessibilityState={{ selected: !!selected }}
+      style={({ pressed }) => ({ minHeight: 36, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.chip, borderWidth: 1,
+      borderColor: selected ? colors.text : colors.borderStrong, backgroundColor: selected ? colors.text : pressed ? colors.control : "transparent" })}>
       <Text style={{ fontFamily: font.medium, fontSize: 13, color: selected ? colors.canvas : colors.textSecondary }}>{label}</Text>
     </Pressable>
   );
@@ -129,13 +138,22 @@ export function ComingSoon({ what }: { what: string }) {
 }
 
 export function ErrorText({ error }: { error?: string | null }) {
-  return error ? <Text style={[type.label, { color: colors.danger }]}>{error}</Text> : null;
+  if (!error) return null;
+  return (
+    <View accessibilityRole="alert" style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: radii.inset,
+      backgroundColor: "rgba(255,100,100,0.08)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,100,100,0.35)" }}>
+      <AlertCircle size={16} color={colors.danger} style={{ marginTop: 1 }} />
+      <Text selectable style={[type.bodySm, { flex: 1, color: colors.danger }]}>{error}</Text>
+    </View>
+  );
 }
 
 export function Empty({ emoji, title, body }: { emoji: string; title: string; body: string }) {
   return (
-    <View style={{ alignItems: "center", gap: 8, paddingVertical: 32 }}>
-      <Text style={{ fontSize: 40 }}>{emoji}</Text>
+    <View style={{ alignItems: "center", gap: 10, paddingVertical: 40, paddingHorizontal: 24 }}>
+      <View style={{ width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong, marginBottom: 4 }}>
+        <Text style={{ fontSize: 32 }}>{emoji}</Text>
+      </View>
       <Text style={type.title}>{title}</Text>
       <Text style={[type.bodySm, { textAlign: "center", color: colors.muted, maxWidth: 280 }]}>{body}</Text>
     </View>

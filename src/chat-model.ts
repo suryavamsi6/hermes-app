@@ -21,6 +21,8 @@ export type AssistantTurn = {
   prompt?: string;
   /** Images sent with the prompt (data: URLs), so a Retry sends them again. */
   attachments?: string[];
+  /** The reply exactly as Hermes stored it, when the shown text was cleaned up (escapes decoded). */
+  raw?: string;
   /** Text the user added while the reply was being written (POST /v1/runs/{id}/steer). */
   steers?: string[];
   /** Added text Hermes never got to before the run ended (offered as a new message). */
@@ -30,7 +32,13 @@ export type UserTurn = { id: string; role: "user"; text: string; at?: number;
   /** Local image URIs shown in the bubble (this phone only). */
   images?: string[];
   /** Images in a message loaded from history (Hermes returns them without their bytes). */
-  imageCount?: number };
+  imageCount?: number;
+  /** Names of text files sent inline with the message (see files.ts). */
+  files?: string[];
+  /** A gateway notification Hermes stored as a user turn: shown as an event chip, not a bubble. */
+  notice?: { title: string; body: string };
+  /** The message exactly as Hermes stores it (when the shown text differs). */
+  raw?: string };
 export type Turn = UserTurn | AssistantTurn;
 
 export type TurnAction =

@@ -12,6 +12,8 @@ import { type HermesConfig, loadConfig, saveConfig } from "./config";
 import { DemoBackend } from "./demo-backend";
 import { LiveBackend } from "./live-backend";
 import * as Store from "./secure";
+import { isGatewayNotice, parseNotice, tidyEscapes } from "./notices";
+import { splitFiles, withFiles } from "./files";
 import { createStore, useStore } from "./store";
 import type { FaceMood } from "./ui/bot-face";
 import type { ApprovalChoice } from "./chat-model";
@@ -28,7 +30,7 @@ type Ctx = {
   /** Load the bot's chat once; `force` reloads it (e.g. after the bot got a chat key). */
   loadChat: (bot: Bot, force?: boolean) => Promise<void>;
   /** Send a message; `images` are photos picked in the composer (local URI for the bubble, data: URL for Hermes). */
-  send: (bot: Bot, text: string, images?: { uri: string; dataUrl: string }[]) => Promise<void>;
+  send: (bot: Bot, text: string, images?: { uri: string; dataUrl: string }[], files?: { name: string; text: string }[]) => Promise<void>;
   /** Add guidance to the reply that's being written. Throws when Hermes no longer accepts it. */
   steer: (bot: Bot, text: string) => Promise<void>;
   /** Retry a failed/stopped assistant turn in place. */
@@ -89,14 +91,22 @@ export function retryReason(code?: string): "bot_chat" | "stale" | null {
   if (code === "session_not_found" || code === "404") return "stale";
   return null;
 }
-const toTurns = (history: HistoryMessage[]): Turn[] => {
+export const toTurns = (history: HistoryMessage[]): Turn[] => {
   let prompt: string | undefined;
   return history.map((m) => {
-    if (m.role === "user") { prompt = m.text; return { id: nextId("u"), role: "user", text: m.text, at: m.at, ...(m.images ? { imageCount: m.images } : {}) }; }
-    return { ...initialTurn(nextId("a")), text: m.text, status: "completed", at: m.at, prompt };
+    if (m.role === "user") {
+      if (isGatewayNotice(m.text)) { prompt = undefined; const n = parseNotice(m.text); return { id: nextId("u"), role: "user", text: n.title, raw: m.text, notice: n, at: m.at }; }
+      prompt = m.text;
+      const { text, files } = splitFiles(m.text);
+      return { id: nextId("u"), role: "user", text: tidyEscapes(text), at: m.at, ...(text !== m.text ? { raw: m.text } : {}), ...(files.length ? { files } : {}), ...(m.images ? { imageCount: m.images } : {}) };
+    }
+    const text = tidyEscapes(m.text);
+    return { ...initialTurn(nextId("a")), text, status: "completed", at: m.at, prompt, ...(text !== m.text ? { raw: m.text } : {}) };
   });
 };
 const plain = (md: string) => md.replace(/[#*_`>|-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+/** Home's one-line preview of a history message. */
+const previewOf = (m: HistoryMessage) => (m.role === "user" && isGatewayNotice(m.text) ? parseNotice(m.text).title : plain(tidyEscapes(splitFiles(m.text).text) || "📎 File"));
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -145,7 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const turns = toTurns(history);
       patchChat(bot.id, (c) => ({ ...c, sessionId, turns: c.turns.length ? c.turns : turns, loaded: true }));
       const last = history[history.length - 1];
-      if (last) { setPreview((p) => ({ ...p, [bot.id]: plain(last.text) })); if (last.at) touch(bot.id, last.at); }
+      if (last) { setPreview((p) => ({ ...p, [bot.id]: previewOf(last) })); if (last.at) touch(bot.id, last.at); }
     } catch (e: any) {
       patchChat(bot.id, (c) => ({ ...c, loaded: true, error: String(e?.message ?? e) }));
     }
@@ -221,13 +231,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try { return recoverReply(parseMessages(await backend.chat(bot).messages(sid)), prompt); } catch { return undefined; }
   }, [backend]);
 
-  const send = useCallback(async (bot: Bot, text: string, images: { uri: string; dataUrl: string }[] = []) => {
+  const send = useCallback(async (bot: Bot, text: string, images: { uri: string; dataUrl: string }[] = [], files: { name: string; text: string }[] = []) => {
     if (!backend) return;
     const aid = nextId("a"); const at = Date.now();
     const pics = images.length ? { images: images.map((i) => i.uri) } : {};
     const attachments = images.length ? { attachments: images.map((i) => i.dataUrl) } : {};
-    patchChat(bot.id, (c) => ({ ...c, turns: [...c.turns, { id: nextId("u"), role: "user", text, at, ...pics }, { ...initialTurn(aid), at, prompt: text, key: newRunKey(), ...attachments }] }));
-    setPreview((p) => ({ ...p, [bot.id]: `You: ${plain(text) || "📷 Photo"}` }));
+    // Text files go inline (Hermes's runs API takes text and images only); the bubble shows chips.
+    const prompt = files.length ? withFiles(text, files) : text;
+    const docs = files.length ? { files: files.map((f) => f.name), raw: prompt } : {};
+    patchChat(bot.id, (c) => ({ ...c, turns: [...c.turns, { id: nextId("u"), role: "user", text, at, ...pics, ...docs }, { ...initialTurn(aid), at, prompt, key: newRunKey(), ...attachments }] }));
+    setPreview((p) => ({ ...p, [bot.id]: `You: ${plain(text) || (files.length ? `📎 ${files[0].name}` : "📷 Photo")}` }));
     touch(bot.id);
     await runTurn(bot, aid);
   }, [backend, patchChat, runTurn]);
@@ -251,12 +264,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const history = parseMessages(await backend.chat(bot).messages(sid));
       const now = chats()[bot.id];
       if (now?.busy) return;
-      const shown = (now?.turns ?? []).filter((t) => t.role === "user" || t.status === "completed").map((t) => t.text);
+      const shown = (now?.turns ?? []).filter((t) => t.role === "user" || t.status === "completed").map((t) => (t as { raw?: string }).raw ?? t.text);
       const same = shown.length === history.length && history.every((m, i) => m.text === shown[i]);
       if (same) return;
       patchChat(bot.id, (x) => ({ ...x, sessionId: sid, turns: toTurns(history), error: undefined }));
       const last = history[history.length - 1];
-      if (last) { setPreview((p) => ({ ...p, [bot.id]: plain(last.text) })); if (last.at) touch(bot.id, last.at); }
+      if (last) { setPreview((p) => ({ ...p, [bot.id]: previewOf(last) })); if (last.at) touch(bot.id, last.at); }
     } catch {}
   }, [backend, patchChat]);
 

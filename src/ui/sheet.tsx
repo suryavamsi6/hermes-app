@@ -1,20 +1,21 @@
 // Bottom sheet (Home bot menu, message menu): scrim, rounded top, grab handle, plain rows.
-// The panel springs up from the bottom while the scrim fades in (Reduce Motion: no slide).
-const SLIDE = SlideInDown.springify().damping(20).stiffness(220).mass(0.8).reduceMotion(ReduceMotion.System);
+// The panel glides up (ease-out, no bounce) while the scrim fades in (Reduce Motion: no slide).
 import { Modal, Pressable, Text, View } from "react-native";
-import Reanimated, { ReduceMotion, SlideInDown } from "react-native-reanimated";
+import Reanimated, { Easing, ReduceMotion, SlideInDown } from "react-native-reanimated";
+const SLIDE = SlideInDown.duration(220).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System);
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, type } from "./theme";
 
-export function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: React.ReactNode }) {
+export function Sheet({ visible, onClose, title, children }: { visible: boolean; onClose: () => void; title?: string; children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: colors.scrim, justifyContent: "flex-end" }} onPress={onClose}>
         <Reanimated.View entering={SLIDE}>
           <Pressable onPress={() => {}} style={{ backgroundColor: colors.control, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 10, paddingBottom: insets.bottom + 12 }}>
-            <View style={{ alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 14 }} />
-            {children}
+            <View style={{ alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong, marginBottom: title ? 10 : 14 }} />
+            {title ? <Text accessibilityRole="header" style={[type.label, { paddingHorizontal: 20, paddingBottom: 6, letterSpacing: 0.4 }]}>{title.toUpperCase()}</Text> : null}
+            <View style={{ paddingHorizontal: title ? 6 : 0 }}>{children}</View>
           </Pressable>
         </Reanimated.View>
       </Pressable>
