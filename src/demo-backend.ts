@@ -141,6 +141,7 @@ export class DemoBackend implements Backend {
   }
   async setJobPaused(b: Bot, id: string, paused: boolean) { const j = this.get(b).jobs.find((x) => x.id === id); if (j) j.paused = paused; }
   async runJob(b: Bot, id: string) { const j = this.get(b).jobs.find((x) => x.id === id); if (j) j.lastRun = "just now"; await sleep(400); }
+  async updateJob(b: Bot, id: string, j: { name: string; schedule: string; prompt: string }) { const d = this.get(b); d.jobs = d.jobs.map((x) => (x.id === id ? { ...x, ...j } : x)); }
   async deleteJob(b: Bot, id: string) { const d = this.get(b); d.jobs = d.jobs.filter((x) => x.id !== id); }
   async getMemory(b: Bot) { return this.get(b).memory; }
   async setMemory(b: Bot, m: Memory) { this.get(b).memory = m; }

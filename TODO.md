@@ -1,5 +1,37 @@
 # TODO (after the Oct 25, 2026 session)
 
+## v0.10.0 (versionCode 16): features checked against hermes-agent (Oct 14 build) and the bridge
+Shipped:
+- **Home "Today" card**: runs waiting for your OK, unread replies, bots working, routines whose last run failed.
+- **Approval cards**: full command/target, Deny / Edit / Allow once, plus "Allow for this chat" and
+  "Always allow" (Hermes choices `session`/`always`; refused in shared rooms). Edit = deny + puts the
+  command in the composer so you can say what to do instead (Hermes can't run an edited command).
+- **Activity** (bot settings → Activity): tool-call timeline from the Bot Chat's messages, the current
+  plan (Hermes's `todo` tool list), and on/off switches per MCP server and toolset.
+- **Routines**: tap a routine to edit name/schedule/prompt (`PATCH /api/jobs/{id}`); pause/resume/run/delete as before.
+- **Notifications**: global replies/approvals/errors, quiet hours (approvals still come through),
+  hide message text, and per-bot mute and switches (bot settings → Notifications).
+- **Topics & sessions**: create a topic, rename, archive (`POST/PATCH /api/sessions`).
+- **Voice call**: hands-free listen → send → read reply aloud → listen (chat "…" menu or bot settings).
+- **Usage** (bot settings): 30-day tokens, API calls, cost, sessions via bridge `GET /v1/profiles/<p>/usage`
+  (**needs the bridge redeployed**, like the persona endpoint).
+- **Settings hub** (Home ⚙): connection, chat (times, status lines, read-aloud speed), notifications,
+  per-bot list, security (fingerprint app lock), primary bot, appearance note, reset, about.
+
+Not supported by Hermes, or left for later:
+- **Files tab**: Hermes only exposes workspace files through the dashboard's `/api/files`, which the
+  bridge deliberately never forwards (it's a full filesystem API). `/v1/artifacts/download/{id}` needs
+  an artifact id that runs don't report. Skipped.
+- **Permission levels** (do freely / ask / never): lives in Hermes config (`approvals.mode`,
+  `command_allowlist`); the bridge doesn't allow config writes. "Always allow" on an approval is the
+  supported way to pre-approve. Skipped.
+- **Goals**: no goals API. The Activity screen's "Current plan" (todo list) is the closest thing.
+- **Voice messages as audio**: `/v1/runs` takes text and images only, so the voice call sends text.
+- **Chatting inside topics**: create/rename/archive work; the chat screen still talks only to the Bot Chat.
+- **Android home-screen widget**, **share into Hermes**: need native modules (react-native-android-widget,
+  expo-share-intent) plus a custom entry; next native round.
+- **Offline send queue**, theme/accent/text size, 120 Hz toggle (always on): later.
+
 ## v0.9.3 (versionCode 15): motion
 - react-native-reanimated 4.7.1 + react-native-worklets 0.13.0 (via `npx expo install`). Shared
   primitives in `src/ui/motion.tsx` (Rise, PressScale, Skeleton/SkeletonRows, usePulse, enter/leave

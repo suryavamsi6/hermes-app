@@ -5,7 +5,7 @@
 // Date dividers between days; long-press a message for reactions, time, copy/share/quote/read aloud/
 // edit; swipe a bubble left to quote it. The "…" menu holds search, the model picker and export.
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowDown, ChevronDown, ChevronLeft, ChevronUp, Cpu, Ellipsis, FileDown, Loader, RotateCcw, Search, Settings2, X } from "lucide-react-native";
+import { Phone, ArrowDown, ChevronDown, ChevronLeft, ChevronUp, Cpu, Ellipsis, FileDown, Loader, RotateCcw, Search, Settings2, X } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Animated, FlatList, Image, KeyboardAvoidingView, type NativeScrollEvent, type NativeSyntheticEvent, PanResponder, Platform, Pressable, Share, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -361,6 +361,7 @@ export default function BotChatScreen() {
       <Sheet visible={chatMenu} onClose={() => setChatMenu(false)}>
         <SheetRow icon={<Search size={20} color={colors.text} />} label="Search in chat" onPress={() => { setChatMenu(false); startSearch(); }} />
         <SheetRow icon={<Cpu size={20} color={colors.text} />} label={bot.model ? `Model · ${bot.model}` : "Model"} onPress={() => { setChatMenu(false); setModelSheet(true); }} />
+        <SheetRow icon={<Phone size={20} color={colors.text} />} label="Voice call" onPress={() => { setChatMenu(false); router.push(`/call/${bot.id}`); }} />
         <SheetRow icon={<FileDown size={20} color={colors.text} />} label="Export as Markdown" onPress={() => { setChatMenu(false); exportChat(); }} />
         <SheetRow icon={<Settings2 size={20} color={colors.text} />} label="Bot settings" onPress={() => { setChatMenu(false); router.push(`/bot-info/${bot.id}`); }} />
       </Sheet>

@@ -119,6 +119,12 @@ export class LiveBackend implements Backend {
       throw e;
     }
   }
+  async getUsage(b: Bot, days = 30) {
+    if (!this.bridge) throw new ComingSoonError("memory");
+    const r = await this.bridge.usage(b.profile, days);
+    const t = r.totals ?? {}, n = (k: string) => Number(t[k] ?? 0) || 0;
+    return { days: r.days, input: n("total_input"), output: n("total_output"), costUsd: n("total_actual_cost") || n("total_estimated_cost"), sessions: n("total_sessions"), apiCalls: n("total_api_calls") };
+  }
   async setPersona(b: Bot, text: string) { await this.need("editPersona").setSoul(b.profile, text); }
   async updateBot(b: Bot) {
     const { needsKey: _, ...keep } = b;
@@ -182,6 +188,10 @@ export class LiveBackend implements Backend {
     }
     return c.createSession(); // untitled: Hermes leaves the title empty, no uniqueness check
   }
+  async createTopic(b: Bot, title: string) { await this.client(b).createSession(title); }
+  async updateSession(b: Bot, id: string, patch: { title?: string; archived?: boolean }) {
+    await this.client(b).call(`/api/sessions/${encodeURIComponent(id)}`, "PATCH", patch);
+  }
   async listSessions(b: Bot): Promise<SessionInfo[]> {
     const r = await this.client(b).call(`/api/sessions?limit=50`);
     return arr(r, "sessions", "data", "items").map((s) => ({ id: String(s.id ?? s.session_id), title: String(s.title || s.preview || "Untitled"), updated: s.updated_at ?? s.last_active }));
@@ -226,6 +236,9 @@ export class LiveBackend implements Backend {
   async runJob(b: Bot, id: string) {
     if (this.bridge) { await this.bridge.jobAction(b.profile, id, "trigger"); return; }
     await this.client(b).call(`/api/jobs/${encodeURIComponent(id)}/run`, "POST", {});
+  }
+  async updateJob(b: Bot, id: string, j: { name: string; schedule: string; prompt: string }) {
+    await this.client(b).call(`/api/jobs/${encodeURIComponent(id)}`, "PATCH", { name: j.name, schedule: j.schedule, prompt: j.prompt });
   }
   async deleteJob(b: Bot, id: string) { await this.client(b).call(`/api/jobs/${encodeURIComponent(id)}`, "DELETE"); }
 

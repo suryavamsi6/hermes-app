@@ -22,8 +22,10 @@ export default function Routines() {
   })) : null, [backend, bots]);
   const [form, setForm] = useState({ name: "", schedule: PRESETS[0][1], prompt: "" });
   const [error, setError] = useState<string | null>(null);
+  /** The routine being edited (its bot and id), or null when the form adds a new one. */
+  const [editing, setEditing] = useState<{ bot: Bot; id: string } | null>(null);
   if (!backend) return null;
-  const target = bots.find((b) => b.id === (filter ?? bots[0]?.id));
+  const target = editing?.bot ?? bots.find((b) => b.id === (filter ?? bots[0]?.id));
   const groups = (jobs.data ?? []).filter((g) => !filter || g.bot.id === filter);
   const act = async (f: () => Promise<void>) => { try { await f(); await jobs.reload(); } catch (e: any) { setError(String(e?.message ?? e)); } };
 
@@ -38,11 +40,12 @@ export default function Routines() {
           {list.map((j, i) => (
             <View key={j.id} style={{ flexDirection: "row", gap: 12, padding: 14, borderBottomWidth: i === list.length - 1 ? 0 : 1, borderBottomColor: colors.border, opacity: j.paused ? 0.55 : 1 }}>
               <Avatar bot={bot} size={30} />
-              <View style={{ flex: 1, gap: 2 }}>
+              <Pressable style={{ flex: 1, gap: 2 }} accessibilityLabel={`Edit ${j.name}`} disabled={!backend.updateJob}
+                onPress={() => { setEditing({ bot, id: j.id }); setForm({ name: j.name, schedule: j.schedule, prompt: j.prompt }); }}>
                 <Text style={[type.body, { fontSize: 15 }]}>{j.name}{j.paused ? "  · paused" : ""}</Text>
                 <Text style={type.label}>{j.schedule}{j.nextRun ? ` · next ${j.nextRun}` : ""}{j.lastRun ? ` · ran ${j.lastRun}` : ""}{j.lastStatus ? ` (${j.lastStatus})` : ""}</Text>
                 <Text style={[type.label, { color: colors.dim }]} numberOfLines={2}>{j.prompt}</Text>
-              </View>
+              </Pressable>
               <View style={{ gap: 12, alignItems: "center" }}>
                 <Pressable hitSlop={8} accessibilityLabel="Run now" onPress={() => act(() => backend.runJob(bot, j.id))}><Zap size={17} color={colors.accentText} /></Pressable>
                 <Pressable hitSlop={8} accessibilityLabel={j.paused ? "Resume" : "Pause"} onPress={() => act(() => backend.setJobPaused(bot, j.id, !j.paused))}>
@@ -59,7 +62,7 @@ export default function Routines() {
       {jobs.loading && !jobs.data ? <SkeletonRows rows={4} /> : null}
       {jobs.data && groups.every((g) => !g.jobs.length) ? <Empty emoji="⏰" title="Nothing scheduled" body="Routines are Hermes cron jobs. Add one below and its results land in the bot's chat." /> : null}
       {target ? (
-        <Section title={`New routine for ${target.emoji} ${target.name}`}>
+        <Section title={editing ? `Edit routine · ${target.emoji} ${target.name}` : `New routine for ${target.emoji} ${target.name}`}>
           <View style={{ padding: 12, gap: 12 }}>
             <Field label="Name" placeholder="Morning brief" value={form.name} onChangeText={(name) => setForm({ ...form, name })} />
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -67,8 +70,12 @@ export default function Routines() {
             </View>
             <Field label="Schedule (cron or 'every 2h')" autoCapitalize="none" value={form.schedule} onChangeText={(schedule) => setForm({ ...form, schedule })} />
             <Field label="What should it do?" multiline placeholder="Summarise my inbox and calendar" value={form.prompt} onChangeText={(prompt) => setForm({ ...form, prompt })} />
-            <Button title="Add routine" disabled={!form.name.trim() || !form.prompt.trim()}
-              onPress={() => act(async () => { await backend.createJob(target, form); setForm({ name: "", schedule: PRESETS[0][1], prompt: "" }); })} />
+            <Button title={editing ? "Save changes" : "Add routine"} disabled={!form.name.trim() || !form.prompt.trim()}
+              onPress={() => act(async () => {
+                if (editing) await backend.updateJob!(editing.bot, editing.id, form); else await backend.createJob(target, form);
+                setEditing(null); setForm({ name: "", schedule: PRESETS[0][1], prompt: "" });
+              })} />
+            {editing ? <Button title="Cancel" kind="secondary" onPress={() => { setEditing(null); setForm({ name: "", schedule: PRESETS[0][1], prompt: "" }); }} /> : null}
           </View>
         </Section>
       ) : null}

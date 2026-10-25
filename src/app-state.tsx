@@ -344,6 +344,10 @@ export function useApp() {
 // ---- selector hooks over the live store: each re-renders only when its own slice changes ----
 export const useChat = (botId?: string): BotChat => useStore(live, (s) => (botId && s.chats[botId]) || EMPTY);
 export const useUnread = (botId: string) => useStore(live, (s) => s.unread[botId] ?? 0);
+/** Home's "Today" card: totals across bots (primitives only, so selectors stay cheap and stable). */
+export const useTotalUnread = () => useStore(live, (s) => Object.values(s.unread).reduce((n, v) => n + (v ?? 0), 0));
+export const useApprovalBots = () => useStore(live, (s) => Object.entries(s.chats).filter(([, c]) => c.turns.some((t) => t.role === "assistant" && !!(t as any).approval)).map(([id]) => id).join(","));
+export const useBusyCount = () => useStore(live, (s) => Object.values(s.chats).filter((c) => c.busy).length);
 export const usePreview = (botId: string) => useStore(live, (s) => s.preview[botId] ?? "");
 export const useBusy = (botId: string) => useStore(live, (s) => s.chats[botId]?.busy ?? false);
 export const useReaction = (id: string) => useStore(live, (s) => s.reactions[id]);

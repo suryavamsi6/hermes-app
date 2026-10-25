@@ -65,6 +65,8 @@ export class BridgeClient {
   /** The profile's SOUL.md (bridge 0.3+: GET/PUT /v1/profiles/<p>/soul). */
   soul(profile: string) { return this.req<{ content: string; exists: boolean }>("GET", this.p(profile, "/soul")); }
   setSoul(profile: string, content: string) { return this.req("PUT", this.p(profile, "/soul"), { content }); }
+  /** Token and cost totals (bridge 0.3+: GET /v1/profiles/<p>/usage). */
+  usage(profile: string, days = 30) { return this.req<{ days: number; totals: Record<string, number | null> }>("GET", this.p(profile, `/usage?days=${days}`)); }
   rotateKey(profile: string) { return this.req<{ api_key: string }>("POST", this.p(profile, "/key"), {}); }
   restartGateway() { return this.req("POST", "/v1/gateway/restart", {}); }
 

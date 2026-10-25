@@ -16,6 +16,8 @@ import { ModelPicker } from "../../src/ui/model-picker";
 import { SkeletonRows } from "../../src/ui/motion";
 import { colors, type } from "../../src/ui/theme";
 
+const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
+
 export default function BotInfo() {
   const { botId } = useLocalSearchParams<{ botId: string }>();
   const bot = useBot(botId);
@@ -37,6 +39,7 @@ export default function BotInfo() {
   // Select stable references only (a fresh object per read would loop useSyncExternalStore).
   const allPrefs = usePrefs((p) => p);
   const notif = { ...allPrefs.bots[botId ?? ""], g: allPrefs };
+  const usage = useLoad(bot && backend?.getUsage && backend.supports("createBot") ? () => backend.getUsage!(bot, 30) : null, [bot?.id, backend]);
   const setup = useSetupChat();
   const [skillError, setSkillError] = useState<string | null>(null);
   if (!bot || !draft || !backend) return null;
@@ -105,6 +108,13 @@ export default function BotInfo() {
         {skills.loading && !skills.data ? <SkeletonRows /> : null}
         {skills.error ? <View style={{ padding: 12 }}><ErrorText error={skills.error} /></View> : null}
       </Section>
+
+      {usage.data ? (
+        <Section title="Usage · last 30 days" footer="From Hermes's session records. Cost is the provider's figure when known, else Hermes's estimate.">
+          <Row title={`${fmt(usage.data.input + usage.data.output)} tokens`} detail={`${fmt(usage.data.input)} in · ${fmt(usage.data.output)} out · ${usage.data.apiCalls} API calls`} />
+          <Row title={`$${usage.data.costUsd.toFixed(2)}`} detail={`${usage.data.sessions} sessions`} last />
+        </Section>
+      ) : null}
 
       <Section title="Notifications" footer="Overrides Settings → Notifications for this bot.">
         <Row icon={<BellOff size={18} color={colors.muted} />} title="Mute this bot" detail="No notifications at all" right={<Toggle value={!!notif.muted} onChange={(v) => setBotNotify(bot.id, { muted: v })} />} />

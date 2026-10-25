@@ -10,6 +10,7 @@ import type { Bot } from "../src/backend";
 import { useApp, useBusy, useLastAt, useMood, usePreview, useUnread } from "../src/app-state";
 import { Avatar } from "../src/ui/kit";
 import { PressScale, Rise } from "../src/ui/motion";
+import { TodayCard } from "../src/ui/today-card";
 
 /** The list staggers in once per app launch, not every time Home re-mounts. */
 let introPlayed = false;
@@ -54,7 +55,7 @@ export default function Home() {
       {notice ? <Notice text={notice} onSettings={() => router.push("/settings")} /> : null}
       <FlatList
         data={others} keyExtractor={(b) => b.id} keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={!query && primary ? <Rise play={intro} scale={0.94} dy={0}><Hero bot={primary} onLong={onLong} /></Rise> : undefined}
+        ListHeaderComponent={!query && primary ? <View><Rise play={intro} scale={0.94} dy={0}><Hero bot={primary} onLong={onLong} /></Rise><TodayCard /></View> : undefined}
         renderItem={({ item, index }) => <Rise play={intro && index < 12} delay={80 + index * 45}><BotRow bot={item} onLong={onLong} primary={item.id === primary?.id} /></Rise>}
         ListEmptyComponent={query ? <Text style={[type.bodySm, { color: colors.muted, textAlign: "center", marginTop: 40 }]}>No bots match "{q.trim()}"</Text>
           : !bots.length ? <Text style={[type.bodySm, { color: colors.muted, textAlign: "center", marginTop: 40 }]}>Loading your bots…</Text> : undefined}

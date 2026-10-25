@@ -36,6 +36,7 @@ export type Plugin = { name: string; kind: PluginKind; description: string; vers
   toggleHint?: string; source?: string };
 /** Memory as hermes-bridge reports it: the active provider and the built-in files' sizes (not their text). */
 export type MemoryStatus = { active: string; providers: { name: string; description: string; available: boolean; configured: boolean; status?: string }[]; files: { memory: number; user: number } };
+export type Usage = { days: number; input: number; output: number; costUsd: number; sessions: number; apiCalls: number };
 export type ModelOption = { id: string; provider?: string; label: string; providerName?: string };
 /** One entry of Hermes's curated plugin marketplace (dashboard /api/dashboard/plugins/catalog). */
 export type CatalogPlugin = { name: string; title: string; description: string; maintainer?: string; tier?: string; category?: string;
@@ -74,8 +75,13 @@ export interface Backend {
   /** Live only: verify /p/<profile>/ is served and `apiKey` is that profile's key; throws a readable error. */
   checkProfile?(profile: string, apiKey: string): Promise<void>;
   listSessions(b: Bot): Promise<SessionInfo[]>;
+  /** Topics: extra sessions of the same profile (they share its memory). POST/PATCH /api/sessions. */
+  createTopic?(b: Bot, title: string): Promise<void>;
+  updateSession?(b: Bot, id: string, patch: { title?: string; archived?: boolean }): Promise<void>;
   /** The persona (SOUL.md). Live: via hermes-bridge's /soul endpoints. */
   getPersona?(b: Bot): Promise<string>;
+  /** Live + bridge: last N days of tokens and cost for the bot's profile. */
+  getUsage?(b: Bot, days?: number): Promise<Usage>;
   setPersona?(b: Bot, text: string): Promise<void>;
   listModels(b: Bot): Promise<ModelOption[]>;
   listSkills(b: Bot): Promise<Skill[]>;
@@ -87,6 +93,8 @@ export interface Backend {
   setJobPaused(b: Bot, id: string, paused: boolean): Promise<void>;
   runJob(b: Bot, id: string): Promise<void>;
   deleteJob(b: Bot, id: string): Promise<void>;
+  /** PATCH /api/jobs/{id} (name, schedule, prompt). */
+  updateJob?(b: Bot, id: string, j: NewJob): Promise<void>;
   getMemory(b: Bot): Promise<Memory>;
   setMemory(b: Bot, m: Memory): Promise<void>;
   /** Live: provider + file sizes via hermes-bridge (Hermes has no API for the files' text). */
