@@ -257,4 +257,4 @@ Never commit keystores, `.env` files or keys; `.gitignore` already excludes them
 
 ## License
 
-See [LICENSE](LICENSE). Not affiliated with Nous Research; "Hermes Agent" is their project.
+MIT. See [LICENSE](LICENSE). Not affiliated with Nous Research; "Hermes Agent" is their project.
