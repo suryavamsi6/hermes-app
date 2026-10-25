@@ -219,7 +219,9 @@ Never commit keystores, `.env` files or keys; `.gitignore` already excludes them
 Releases are built by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)), not Expo's cloud:
 
 1. Bump `expo.version` and `expo.android.versionCode` in `app.json` (and `version` in `package.json`).
-2. Commit, then tag and push: `git tag v0.11.4 && git push origin main v0.11.4`.
+2. Commit and push to `main`. That's it: when `app.json` changes on `main` and `v<version>` has no tag or
+   release yet, the workflow builds that commit, creates the tag and publishes the release. (Pushing a
+   `v<version>` tag yourself still works; a version that already has a release is skipped either way.)
 3. The workflow checks that the tag matches `app.json`, runs the typecheck and tests, runs
    `expo prebuild` + Gradle, signs the APK with the release key, and publishes `hermes-<version>.apk`
    to a GitHub Release with generated notes.

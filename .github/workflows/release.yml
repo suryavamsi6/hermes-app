@@ -1,39 +1,92 @@
 name: Release APK
 
-# Push a tag like v0.11.1 (it must match "version" in app.json) to build a signed release APK and
-# publish it to a GitHub Release. No Expo cloud: prebuild + Gradle on the runner.
+# Builds a signed release APK and publishes it to a GitHub Release. No Expo cloud: prebuild + Gradle
+# on the runner. Three ways in:
+#  - Bump "version" (and versionCode) in app.json on main: if v<version> has no tag or release yet,
+#    this builds that commit, then creates the tag and the release. Otherwise it does nothing.
+#  - Push a tag like v0.11.4 (it must match "version" in app.json at that commit).
+#  - Run it by hand (Actions > Release APK > Run workflow), optionally naming an existing tag.
+# Every path skips a version that already has a release, and runs for one version are serialized,
+# so two paths can't publish the same version twice.
 on:
   push:
     tags: ["v*"]
+    branches: [main]
+    paths: ["app.json", ".github/workflows/release.yml"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build (e.g. v0.11.1)"
-        required: true
+        description: "Existing tag to build (e.g. v0.11.1). Empty: the app.json version on the chosen branch."
+        required: false
+        default: ""
 
 permissions:
   contents: write
 
-concurrency:
-  group: release-${{ github.event.inputs.tag || github.ref_name }}
-  cancel-in-progress: false
-
 jobs:
-  apk:
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      ref: ${{ steps.plan.outputs.ref }}
+      auto: ${{ steps.plan.outputs.auto }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ github.event.inputs.tag || github.sha }}
+      - name: Which version
+        id: plan
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"; echo "ref=$GITHUB_REF" >> "$GITHUB_OUTPUT"; echo "auto=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$INPUT_TAG" ]; then
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"; echo "ref=refs/tags/$INPUT_TAG" >> "$GITHUB_OUTPUT"; echo "auto=false" >> "$GITHUB_OUTPUT"
+          else
+            VERSION=$(node -p "require('./app.json').expo.version")
+            echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"; echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"; echo "auto=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  apk:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # One run at a time per version; the check below runs inside the lock.
+    concurrency:
+      group: release-${{ needs.plan.outputs.tag }}
+      cancel-in-progress: false
+    env:
+      TAG: ${{ needs.plan.outputs.tag }}
+    steps:
+      - name: Skip a version that's already released
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTO: ${{ needs.plan.outputs.auto }}
+        run: |
+          set -euo pipefail
+          SKIP=false
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::Release $TAG already exists; nothing to do."; SKIP=true
+          elif [ "$AUTO" = "true" ] && git ls-remote --exit-code --tags "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::notice::Tag $TAG already exists; its own run builds it. Nothing to do."; SKIP=true
+          fi
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
+        if: steps.check.outputs.skip != 'true'
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.skip != 'true'
         with:
           repository: suryavamsi6/hermes-bridge
           path: .hermes-bridge
 
       - name: Version must match the tag
+        if: steps.check.outputs.skip != 'true'
         id: version
         run: |
           VERSION=$(node -p "require('./app.json').expo.version")
@@ -45,31 +98,40 @@ jobs:
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.skip != 'true'
         with:
           node-version: 22
           cache: npm
       - uses: actions/setup-java@v4
+        if: steps.check.outputs.skip != 'true'
         with:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.check.outputs.skip != 'true'
 
       - run: npm ci --legacy-peer-deps
+        if: steps.check.outputs.skip != 'true'
       - run: npx tsc --noEmit
+        if: steps.check.outputs.skip != 'true'
       - run: npm test
+        if: steps.check.outputs.skip != 'true'
         env:
           HERMES_BRIDGE_SRC: ${{ github.workspace }}/.hermes-bridge
 
       - name: Prebuild the Android project
+        if: steps.check.outputs.skip != 'true'
         run: npx expo prebuild --platform android --clean --no-install
         env:
           CI: "1"
 
       - name: Build the release APK (arm64-v8a)
+        if: steps.check.outputs.skip != 'true'
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
 
       - name: Sign with the release key
+        if: steps.check.outputs.skip != 'true'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -90,6 +152,7 @@ jobs:
           echo "APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Check the APK's version
+        if: steps.check.outputs.skip != 'true'
         run: |
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           LINE=$("$BT/aapt2" dump badging "$APK" | grep -m1 "^package:")
@@ -97,8 +160,10 @@ jobs:
           echo "$LINE" | grep -q "versionCode='${{ steps.version.outputs.code }}'" || { echo "::error::versionCode mismatch: $LINE"; exit 1; }
 
       - uses: softprops/action-gh-release@v2
+        if: steps.check.outputs.skip != 'true'
         with:
           tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           name: Hermes Mobile ${{ env.TAG }}
           generate_release_notes: true
           files: ${{ env.APK }}
