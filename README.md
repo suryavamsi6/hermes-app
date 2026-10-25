@@ -9,7 +9,7 @@ It talks to Hermes's own API server. Nothing goes through a third-party service,
 
 **Website:** <https://suryavamsi6.github.io/hermes-app/>
 
-> Status: early, personal project, **Android only** (v0.11.1). It's used daily against a real Hermes, but
+> Status: early, personal project, **Android only** (v0.11.4). It's used daily against a real Hermes, but
 > expect rough edges. Issues and PRs welcome.
 
 | Home | Working | Tool steps | Approval |
@@ -44,6 +44,11 @@ Screenshots come from the built-in demo mode with sample bots (Atlas, Forge, Nov
 - **Attachments.** The **+** button opens Photos, Camera or Files. Images go as inline images, text files
   (code, CSV, JSON, Markdown…) as inline text blocks.
 - **Steer or stop** a running reply: type while it's working to add to it, or tap stop.
+- **Slash commands.** Type `/` for a list you can filter and tap: `/status`, `/stop`, `/retry`, `/steer`,
+  `/approve`, `/model`, `/search`, `/export`, shortcuts to screens (`/cron`, `/mcp`, `/memory`…), and the bot's
+  own skills (`/server-health check the NAS` asks the bot to load and follow that skill). Hermes's API server
+  doesn't run commands, so the app runs these itself. Commands that only Hermes's own chat can run (`/compress`,
+  `/reset`, `/yolo`…) get a short note instead of being sent to the model. Start with `//` to send `/text` as is.
 - **Gateway notices** (a background job finished, a routine delivered, a reply from another bot) show as
   small chips in the chat; tap to read them.
 - **Routines** (Hermes cron jobs): list, run now, pause, resume, delete.
@@ -214,7 +219,7 @@ Never commit keystores, `.env` files or keys; `.gitignore` already excludes them
 Releases are built by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)), not Expo's cloud:
 
 1. Bump `expo.version` and `expo.android.versionCode` in `app.json` (and `version` in `package.json`).
-2. Commit, then tag and push: `git tag v0.11.2 && git push origin main v0.11.2`.
+2. Commit, then tag and push: `git tag v0.11.4 && git push origin main v0.11.4`.
 3. The workflow checks that the tag matches `app.json`, runs the typecheck and tests, runs
    `expo prebuild` + Gradle, signs the APK with the release key, and publishes `hermes-<version>.apk`
    to a GitHub Release with generated notes.
@@ -251,7 +256,7 @@ Signing uses four repository secrets: `ANDROID_KEYSTORE_BASE64` (the keystore, b
 - **"Needs hermes-bridge".** The screen needs the optional bridge; add the bridge key in Settings.
 - **No notifications.** Allow them in Android settings, set battery to *Unrestricted*, and use
   *Send test notification*. Notifications stop when the app is swiped away.
-- **A grey box stuck over the chat** (fixed in v0.10.4). Update the app; if you see it again, open an issue.
+- **A grey box stuck over the chat** (fixed in v0.11.3). Update the app; if you see it again, open an issue.
 - **Animations feel like too much.** Turn on *Reduce motion* in the app, or *Remove animations* in Android's
   accessibility settings.
 
