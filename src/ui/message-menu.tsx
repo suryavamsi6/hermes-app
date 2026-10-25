@@ -9,6 +9,7 @@ import { messageTime } from "./chat-rows";
 import { REACTIONS } from "./reactions";
 import { Sheet, SheetRow } from "./sheet";
 import { colors, type } from "./theme";
+import { getPrefs } from "../prefs";
 
 export type MessageMenuActions = {
   react: (emoji: string | null) => void;
@@ -32,7 +33,7 @@ export function MessageMenu({ turn, reaction, onClose, actions }: { turn: Turn |
     const text = turn?.text;
     if (!text) return;
     // Toggle: pressing again stops whatever is being read.
-    void Speech.isSpeakingAsync().then((speaking) => { if (speaking) Speech.stop(); else Speech.speak(text); }).catch(() => Speech.speak(text));
+    void Speech.isSpeakingAsync().then((speaking) => { if (speaking) Speech.stop(); else Speech.speak(text, { rate: getPrefs().readAloudRate }); }).catch(() => Speech.speak(text, { rate: getPrefs().readAloudRate }));
   });
   return (
     <Sheet visible={!!turn} onClose={onClose}>

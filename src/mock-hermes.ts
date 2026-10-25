@@ -4,6 +4,7 @@ import type { TurnAction } from "./chat-model";
 import type { ChatClient, OnAction } from "./hermes";
 import { HermesError } from "./errors";
 import { inputText, type TurnInput } from "./run-stream";
+import type { ApprovalChoice } from "./chat-model";
 
 type Msg = { role: "user" | "assistant"; content: string; timestamp?: number };
 export type Session = { id: string; title: string; messages: Msg[] };
@@ -58,7 +59,7 @@ export class MockHermesClient implements ChatClient {
       { tool: "terminal", preview: () => "systemctl list-units --state=running", result: "3 services running" },
     ];
   }
-  private approvals = new Map<string, (c: "once" | "deny") => void>();
+  private approvals = new Map<string, (c: ApprovalChoice) => void>();
   private runs = 0;
 
   async capabilities() { return { platform: "demo" }; }
@@ -70,7 +71,7 @@ export class MockHermesClient implements ChatClient {
   }
   async messages(sessionId: string) { return { messages: this.sessions.find((s) => s.id === sessionId)?.messages ?? [] }; }
   async stop(runId: string) { this.approvals.get(runId)?.("deny"); return { status: "stopping" }; }
-  async approve(runId: string, _requestId: string, _gen: number, choice: "once" | "deny") {
+  async approve(runId: string, _requestId: string, _gen: number, choice: ApprovalChoice) {
     const resolve = this.approvals.get(runId);
     if (!resolve) throw new Error("No pending approval");
     resolve(choice);
@@ -113,7 +114,7 @@ export class MockHermesClient implements ChatClient {
         await sleep(700);
         emit({ type: "tool", phase: "completed", tool: "terminal", preview: "37 files, 412 MB" });
         emit({ type: "tool", phase: "started", tool: "terminal", preview: "sudo rm /var/log/*.gz (37 files)" });
-        const choice = await new Promise<"once" | "deny">((resolve) => {
+        const choice = await new Promise<ApprovalChoice>((resolve) => {
           this.approvals.set(runId, resolve);
           emit({ type: "approval", approval: { runId, requestId: "demo-approval", generation: 1, title: "Run a terminal command",
             detail: "sudo rm /var/log/*.gz   # 37 files, 412 MB" } });

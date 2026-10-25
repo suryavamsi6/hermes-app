@@ -7,6 +7,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/app-state";
 import { clearBotNotifications, onNotificationTap } from "../src/notify";
 import { colors } from "../src/ui/theme";
+import { loadPrefs } from "../src/prefs";
+import { AppLock } from "../src/ui/app-lock";
+
+void loadPrefs();
 
 /** Taps (and Allow once / Deny presses) on this app's notifications: approvals are answered in the
  *  background, plain taps open that bot's chat. Also fires for the notification that launched the
@@ -41,6 +45,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ animation: "fade" }} />
           <Stack.Screen name="settings" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         </Stack>
+        <AppLock />
       </AppProvider>
     </SafeAreaProvider>
   );

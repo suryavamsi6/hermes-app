@@ -109,3 +109,32 @@ test("model picker: search filters by id or provider, groups keep provider order
   assert.deepStrictEqual(m.groupModels(ms, "mini").flatMap((g) => g.models.map((x) => x.id)), ["gpt-5.2-mini"]);
   assert.deepStrictEqual(m.groupModels(ms, "anthropic").map((g) => g.title), ["Anthropic"]);
 });
+
+test("notification prefs: quiet hours wrap midnight, mute wins, approvals pierce quiet hours", () => {
+  const p = { ...m.DEFAULT_PREFS, quietStart: 22, quietEnd: 7, bots: { b: { muted: true }, c: { replies: false } } };
+  const night = new Date(2026, 9, 25, 23, 30), day = new Date(2026, 9, 25, 12, 0);
+  assert.ok(m.inQuietHours(p, night) && m.inQuietHours(p, new Date(2026, 9, 26, 6, 59)) && !m.inQuietHours(p, day));
+  assert.strictEqual(m.shouldNotify(p, "a", "reply", night), false);
+  assert.strictEqual(m.shouldNotify(p, "a", "approval", night), true);
+  assert.strictEqual(m.shouldNotify(p, "a", "reply", day), true);
+  assert.strictEqual(m.shouldNotify(p, "b", "approval", day), false);
+  assert.strictEqual(m.shouldNotify(p, "c", "reply", day), false);
+  assert.deepStrictEqual(m.parsePrefs("not json"), m.DEFAULT_PREFS);
+  assert.strictEqual(m.parsePrefs('{"appLock":true}').appLock, true);
+});
+
+test("activity log and plan come from session tool calls", () => {
+  const raw = { data: [
+    { role: "user", content: "hi", timestamp: 1761360000 },
+    { role: "assistant", content: "", timestamp: 1761360001, tool_calls: [
+      { id: "c1", function: { name: "terminal", arguments: '{"command":"git status"}' } },
+      { id: "c2", function: { name: "todo", arguments: "{}" } }] },
+    { role: "tool", tool_call_id: "c1", tool_name: "terminal", content: '{"error":"boom"}' },
+    { role: "tool", tool_call_id: "c2", tool_name: "todo", content: '{"todos":[{"id":"1","content":"Check repo","status":"completed"},{"id":"2","content":"Report","status":"in_progress"}]}' },
+  ] };
+  const log = m.activityLog(raw);
+  assert.deepStrictEqual(log.map((e) => [e.tool, e.summary, !!e.failed]), [["todo", "Planning the next steps", false], ["terminal", "Running git status", true]]);
+  assert.strictEqual(log[1].at, 1761360001000);
+  assert.deepStrictEqual(m.currentPlan(raw).map((p) => p.status), ["completed", "in_progress"]);
+  assert.strictEqual(m.currentPlan({ data: [] }), null);
+});

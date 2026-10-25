@@ -24,7 +24,7 @@ export interface ChatClient {
   streamTurn(sessionId: string, input: TurnInput, onAction: OnAction, opts?: { key?: string }): StreamHandle;
   /** Add guidance to a run while it works (POST /v1/runs/{id}/steer). Rejects when the run no longer accepts it. */
   steer(runId: string, text: string): Promise<void>;
-  approve(runId: string, requestId: string, executionGeneration: number, choice: "once" | "deny"): Promise<unknown>;
+  approve(runId: string, requestId: string, executionGeneration: number, choice: ApprovalChoice): Promise<unknown>;
   stop(runId: string): Promise<unknown>;
 }
 
@@ -36,6 +36,7 @@ export { HermesError, toHermesError } from "./errors";
 import { followRun, newRunKey, type TurnInput } from "./run-stream";
 export type { ContentPart, TurnInput } from "./run-stream";
 import { HermesError, toHermesError } from "./errors";
+import type { ApprovalChoice } from "./chat-model";
 
 /** The id in a create/get-session response ({session:{id}}), tolerant of flatter shapes. */
 export const sessionIdOf = (r: any): string | undefined => {
@@ -178,7 +179,7 @@ export class HermesClient implements ChatClient {
   }
 
   /** Approve/deny a pending tool call (identity comes from GET /v1/runs/{id}.pending_controls). */
-  approve(runId: string, requestId: string, executionGeneration: number, choice: "once" | "deny") {
+  approve(runId: string, requestId: string, executionGeneration: number, choice: ApprovalChoice) {
     return this.json(`/v1/runs/${encodeURIComponent(runId)}/approval`, {
       method: "POST",
       body: { request_id: requestId, execution_generation: executionGeneration, choice },

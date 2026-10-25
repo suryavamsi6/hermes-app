@@ -2,13 +2,16 @@
 // The user allows it once or denies it; the answer goes back to Hermes, which resumes the run.
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import type { Approval } from "../chat-model";
+import type { Approval, ApprovalChoice } from "../chat-model";
 import { tapHaptic } from "./haptics";
 import { colors, font, radii, type } from "./theme";
 
-type Choice = "once" | "deny";
+type Choice = ApprovalChoice;
 
-export function ApprovalCard({ approval, respond }: { approval: Approval; respond: (c: Choice) => Promise<void> }) {
+/** Shows exactly what will run (the full command or target), then Deny / Edit / Allow once, plus
+ *  "Allow for this chat" and "Always allow" (Hermes adds it to the allowlist). Edit denies the call and
+ *  puts the command in the composer so you can say what to do instead. */
+export function ApprovalCard({ approval, respond, onEdit }: { approval: Approval; respond: (c: Choice) => Promise<void>; onEdit?: (detail: string) => void }) {
   const [sending, setSending] = useState<Choice | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -32,7 +35,12 @@ export function ApprovalCard({ approval, respond }: { approval: Approval; respon
       ) : null}
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Choice label="Deny" busy={sending === "deny"} onPress={() => answer("deny")} />
+        {onEdit ? <Choice label="Edit" busy={false} onPress={() => { void answer("deny"); onEdit(approval.detail ?? approval.title); }} /> : null}
         <Choice label="Allow once" primary busy={sending === "once"} onPress={() => answer("once")} />
+      </View>
+      <View style={{ flexDirection: "row", gap: 16, justifyContent: "center" }}>
+        <Pressable hitSlop={6} onPress={() => answer("session")}><Text style={[type.label, { color: colors.accentText }]}>{sending === "session" ? "…" : "Allow for this chat"}</Text></Pressable>
+        <Pressable hitSlop={6} onPress={() => answer("always")}><Text style={[type.label, { color: colors.accentText }]}>{sending === "always" ? "…" : "Always allow"}</Text></Pressable>
       </View>
       {failed ? <Text style={[type.bodySm, { color: colors.danger }]}>{failed}</Text> : null}
     </View>

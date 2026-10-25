@@ -1,7 +1,8 @@
 // Per-bot settings: look, persona, model, toolsets, skills, and links to memory, MCP, plugins,
 // routines and older sessions. Live mode edits only what Hermes's HTTP API allows.
 import { router, useLocalSearchParams } from "expo-router";
-import { Blocks, Brain, CalendarClock, History, KeyRound, Plug, Trash2, Star } from "lucide-react-native";
+import { Activity, BellOff, Blocks, Brain, CalendarClock, History, KeyRound, Phone, Plug, Trash2, Star } from "lucide-react-native";
+import { setBotNotify, usePrefs } from "../../src/prefs";
 import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useApp, useBot, useMood } from "../../src/app-state";
@@ -33,6 +34,9 @@ export default function BotInfo() {
   const soul = useLoad(soulOn ? () => backend!.getPersona!(bot!) : null, [bot?.id, backend]);
   const soulLoading = soulOn && soul.loading;
   useEffect(() => { if (soul.data !== null) setDraft((d) => (d ? { ...d, persona: soul.data ?? "" } : d)); }, [soul.data]);
+  // Select stable references only (a fresh object per read would loop useSyncExternalStore).
+  const allPrefs = usePrefs((p) => p);
+  const notif = { ...allPrefs.bots[botId ?? ""], g: allPrefs };
   const setup = useSetupChat();
   const [skillError, setSkillError] = useState<string | null>(null);
   if (!bot || !draft || !backend) return null;
@@ -102,12 +106,21 @@ export default function BotInfo() {
         {skills.error ? <View style={{ padding: 12 }}><ErrorText error={skills.error} /></View> : null}
       </Section>
 
+      <Section title="Notifications" footer="Overrides Settings → Notifications for this bot.">
+        <Row icon={<BellOff size={18} color={colors.muted} />} title="Mute this bot" detail="No notifications at all" right={<Toggle value={!!notif.muted} onChange={(v) => setBotNotify(bot.id, { muted: v })} />} />
+        <Row title="Replies" right={<Toggle value={notif.replies ?? notif.g.notifyReplies} disabled={!!notif.muted} onChange={(v) => setBotNotify(bot.id, { replies: v })} />} />
+        <Row title="Approvals" right={<Toggle value={notif.approvals ?? notif.g.notifyApprovals} disabled={!!notif.muted} onChange={(v) => setBotNotify(bot.id, { approvals: v })} />} />
+        <Row title="Errors" last right={<Toggle value={notif.errors ?? notif.g.notifyErrors} disabled={!!notif.muted} onChange={(v) => setBotNotify(bot.id, { errors: v })} />} />
+      </Section>
+
       <Section title="More">
+        <Row icon={<Phone size={18} color={colors.muted} />} title="Voice call" detail="Talk hands-free; replies are read aloud" onPress={() => router.push(`/call/${bot.id}`)} />
+        <Row icon={<Activity size={18} color={colors.muted} />} title="Activity" detail="Tool calls, the current plan, and connected-app switches" onPress={() => router.push(`/activity/${bot.id}`)} />
         <Row icon={<Brain size={18} color={colors.muted} />} title="Memory" detail="What it remembers about you" onPress={() => router.push(`/memory/${bot.id}`)} />
         <Row icon={<Plug size={18} color={colors.muted} />} title="MCP servers" detail="Connect outside tools" onPress={() => router.push(`/mcp/${bot.id}`)} />
         <Row icon={<Blocks size={18} color={colors.muted} />} title="Plugins" detail="Browsers, context engines, extra tools" onPress={() => router.push(`/plugins/${bot.id}`)} />
         <Row icon={<CalendarClock size={18} color={colors.muted} />} title="Routines" detail="Recurring jobs that report back here" onPress={() => router.push(`/routines?bot=${bot.id}`)} />
-        <Row icon={<History size={18} color={colors.muted} />} title="Older sessions" detail="Routine runs and side threads" onPress={() => router.push(`/history/${bot.id}`)} last />
+        <Row icon={<History size={18} color={colors.muted} />} title="Topics & sessions" detail="Side threads and routine runs; new, rename, archive" onPress={() => router.push(`/history/${bot.id}`)} last />
       </Section>
       {bot.needsKey && setup.available ? (
         <Section title="Chat" footer={KEY_WARNING}>

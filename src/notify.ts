@@ -4,6 +4,7 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import type { Approval } from "./chat-model";
+import { getPrefs, shouldNotify } from "./prefs";
 
 type Bot = { id: string; name: string };
 const CHANNEL = "replies";
@@ -37,12 +38,19 @@ async function post(content: Notifications.NotificationContentInput, id?: string
   try { await Notifications.scheduleNotificationAsync({ identifier: id, content, trigger: { channelId: CHANNEL } as any }); } catch {}
 }
 
-export const notifyDone = (bot: Bot, text: string) =>
-  post({ title: bot.name, body: text.slice(0, 180), data: { botId: bot.id } }, `done-${bot.id}`);
+/** Respects Settings → Notifications and the bot's own switches (mute, kinds, quiet hours, hidden previews). */
+export const notifyDone = (bot: Bot, text: string, failed = false) => {
+  const p = getPrefs();
+  if (!shouldNotify(p, bot.id, failed ? "error" : "reply")) return;
+  return post({ title: bot.name, body: p.hidePreviews ? (failed ? "A reply couldn't finish" : "New reply") : text.slice(0, 180), data: { botId: bot.id } }, `done-${bot.id}`);
+};
 
-export const notifyApproval = (bot: Bot, turnId: string, a: Approval) =>
-  post({ title: `${bot.name} needs your OK`, body: [a.title, a.detail].filter(Boolean).join(": ").slice(0, 220),
+export const notifyApproval = (bot: Bot, turnId: string, a: Approval) => {
+  const p = getPrefs();
+  if (!shouldNotify(p, bot.id, "approval")) return;
+  return post({ title: `${bot.name} needs your OK`, body: p.hidePreviews ? "Open Hermes to review it" : [a.title, a.detail].filter(Boolean).join(": ").slice(0, 220),
     categoryIdentifier: APPROVAL, data: { botId: bot.id, turnId, approval: true } }, `approval-${bot.id}-${turnId}`);
+};
 
 export type NotificationTap = { botId: string; turnId?: string; choice?: "once" | "deny" };
 

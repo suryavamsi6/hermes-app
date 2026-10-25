@@ -22,6 +22,7 @@ import { activityLine } from "../../src/ui/activity";
 import { Avatar, Chip } from "../../src/ui/kit";
 import { ActivityRow } from "../../src/ui/activity-row";
 import { ModelPicker } from "../../src/ui/model-picker";
+import { usePrefs } from "../../src/prefs";
 import { enter, leave, PressScale, Rise } from "../../src/ui/motion";
 import Reanimated from "react-native-reanimated";
 import { Markdown, MarkedText } from "../../src/ui/markdown";
@@ -64,6 +65,7 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highligh
   if (turn.role === "user") return <Rise play={fresh}><UserRow t={turn} time={time} reaction={reaction} longPress={longPress} unreact={() => react(turn.id, null)} quote={() => onQuote(turn)} highlight={highlight} /></Rise>;
   const t = turn as AssistantTurn;
   const activity = activityLine(t);
+  const showStatus = usePrefs((p) => p.showStatus);
   const canRetry = !!t.prompt;
   const lost = t.errorCode === "connection_lost";
   const note = t.status === "failed" ? (
@@ -87,8 +89,8 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highligh
   return (
     <Rise play={fresh} style={{ gap: 8, alignItems: "flex-start" }}>
       {t.steps.length ? <View style={{ paddingLeft: 4 }}><StepsRow steps={t.steps} /></View> : null}
-      {activity ? <ActivityRow bot={bot} text={activity} /> : null}
-      {t.approval ? <Reanimated.View entering={enter.pop} exiting={leave.fade}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} /></Reanimated.View> : null}
+      {activity ? <ActivityRow bot={bot} text={showStatus ? activity : "Working"} /> : null}
+      {t.approval ? <Reanimated.View entering={enter.pop} exiting={leave.fade}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} onEdit={(d) => setDraftText(bot.id, `Don't run that. Instead:\n${d}`)} /></Reanimated.View> : null}
       {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>↪ You added: {s}</Text>) : null}
       {t.text ? (
         <SwipeQuote onQuote={() => onQuote(turn)}>
@@ -230,6 +232,7 @@ export default function BotChatScreen() {
   const chat = useChat(bot?.id);
   const turns = chat.turns;
   const rows = useMemo(() => buildRows(turns), [turns]);
+  const showTimes = usePrefs((p) => p.showTimestamps);
   // Only messages that arrive while the chat is open animate in (never history), each once. Keyed by
   // role+time because a re-sync rebuilds turn ids.
   const openedAt = useRef(Date.now() - 1000);
@@ -296,8 +299,8 @@ export default function BotChatScreen() {
   const onLong = useCallback((t: Turn) => setMenu(t), []);
   const onRetry = useCallback((id: string) => { if (bot) void retry(bot, id); }, [bot, retry]);
   const render = useCallback(({ item }: { item: ChatRow }) => !bot ? null : item.kind === "day" ? <DayDivider label={item.label} /> : (
-    <TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} time={item.time} fresh={isFresh(item.turn)} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} />
-  ), [bot, lastAssistant?.id, onLong, onQuote, onRetry, searching, query]);
+    <TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} time={showTimes ? item.time : undefined} fresh={isFresh(item.turn)} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} />
+  ), [bot, lastAssistant?.id, onLong, onQuote, onRetry, searching, query, showTimes]);
   const onSend = useCallback((t: string, images: Attachment[] = []) => { if (!bot) return; setEditing(null); if (awayRef.current) jump(); void send(bot, t, images); }, [bot, send, jump]);
   const onSteer = useCallback(async (t: string) => {
     if (!bot) return false;

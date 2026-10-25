@@ -1,5 +1,7 @@
 // Local Hermes chat types + a pure reducer for one streamed assistant turn (unit-tested).
 export type Step = { id: string; tool: string; status: "running" | "completed" | "failed"; preview?: string; result?: string };
+/** Hermes /v1/runs/{id}/approval choices ("session"/"always" are refused in shared rooms). */
+export type ApprovalChoice = "once" | "session" | "always" | "deny";
 export type Approval = { runId?: string; requestId: string; generation: number; title: string; detail?: string };
 // "queued": the profile's Bot Chat is busy in another client; the reply lands in the history later.
 export type TurnStatus = "streaming" | "completed" | "failed" | "cancelled" | "queued";

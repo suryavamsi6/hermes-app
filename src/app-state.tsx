@@ -14,6 +14,7 @@ import { LiveBackend } from "./live-backend";
 import * as Store from "./secure";
 import { createStore, useStore } from "./store";
 import type { FaceMood } from "./ui/bot-face";
+import type { ApprovalChoice } from "./chat-model";
 
 const BUILD_DEMO = process.env.EXPO_PUBLIC_DEMO === "1";
 const DEMO_KEY = "hermes.demo";
@@ -37,7 +38,7 @@ type Ctx = {
   /** Unsent composer text per bot, kept across app restarts. */
   setDraft: (botId: string, text: string) => void;
   stop: (bot: Bot) => void;
-  approve: (bot: Bot, turnId: string, choice: "once" | "deny") => Promise<void>;
+  approve: (bot: Bot, turnId: string, choice: ApprovalChoice) => Promise<void>;
   react: (messageId: string, emoji: string | null) => void;
   save: (c: HermesConfig) => Promise<void>;
   /** The bot shown big at the top of Home (persisted per mode); falls back to the first bot. */
@@ -163,7 +164,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const finish = (a: Extract<TurnAction, { type: "done" }>, acc: string) => {
       patchChat(bot.id, (c) => ({ ...c, busy: false }));
       if (a.status === "completed") { cheer(bot.id); if (active.current === bot.id && appActive.current) doneHaptic(); }
-      if (!appActive.current && (a.status === "completed" || a.status === "failed")) void notifyDone(bot, a.status === "completed" ? plain(acc) || "Reply ready" : `Couldn't finish: ${a.error ?? "the run failed"}`);
+      if (!appActive.current && (a.status === "completed" || a.status === "failed")) void notifyDone(bot, a.status === "completed" ? plain(acc) || "Reply ready" : `Couldn't finish: ${a.error ?? "the run failed"}`, a.status === "failed");
       if (acc) setPreview((p) => ({ ...p, [bot.id]: plain(acc) }));
       touch(bot.id);
       if (active.current !== bot.id) setUnread((u) => ({ ...u, [bot.id]: (u[bot.id] ?? 0) + 1 }));
@@ -315,7 +316,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     patchTurn(bot.id, running.id, (t) => (t.role === "assistant" ? { ...t, steers: [...(t.steers ?? []), text] } : t));
   }, [backend, patchTurn]);
 
-  const approve = useCallback(async (bot: Bot, turnId: string, choice: "once" | "deny") => {
+  const approve = useCallback(async (bot: Bot, turnId: string, choice: ApprovalChoice) => {
     const t = chats()[bot.id]?.turns.find((x): x is AssistantTurn => x.id === turnId && x.role === "assistant");
     if (!backend || !t?.approval?.runId) throw new Error("This approval can't be answered from the phone yet.");
     await backend.chat(bot).approve(t.approval.runId, t.approval.requestId, t.approval.generation, choice);

@@ -4,3 +4,5 @@ export { initialTurn, recoverReply, reduce, retryReusesKey, toAction } from "../
 export { SseParser } from "../src/sse";
 export { activityLine, toolPhrase } from "../src/ui/activity";
 export { groupModels } from "../src/ui/model-groups";
+export { inQuietHours, parsePrefs, shouldNotify, DEFAULT_PREFS } from "../src/prefs-core";
+export { activityLog, currentPlan } from "../src/activity-log";

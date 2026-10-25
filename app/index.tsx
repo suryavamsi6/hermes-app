@@ -44,7 +44,7 @@ export default function Home() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top, paddingBottom: insets.bottom }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8 }}>
-        <Pressable accessibilityLabel="Settings" onPress={() => router.push("/settings")} style={[circle, { backgroundColor: colors.control }]}>
+        <Pressable accessibilityLabel="Settings" onPress={() => router.push("/preferences")} style={[circle, { backgroundColor: colors.control }]}>
           <UserRound size={24} color={colors.textSecondary} />
         </Pressable>
         {demo ? <Text style={[type.label, { alignSelf: "center", backgroundColor: colors.control, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }]}>Demo</Text> : null}
