@@ -72,3 +72,26 @@ test("the chat renders replies and user messages as pieces, not one giant view",
   assert.match(md, /pieces\(shown\.text\)/);
   assert.match(md, /clipLong\(tidy\)/, "the 6k Show-the-rest guard stays");
 });
+
+// v0.11.3: the root cause, reproduced on an Android emulator with the fixture above (the v0.11.1 APK with
+// only the JS swapped): the tall messages alone render fine. The blank box appears only with a code block
+// (or table) in a shrink-to-fit bubble: the horizontal ScrollView makes Android lay the bubble out far
+// taller than its content, so it shows as an empty grey card that also overlaps the message above. Even
+// a 3-line code block between two short paragraphs did it. v0.11.2 only escaped it for this reply because
+// its code had long lines and now wraps. Bubbles with a sideways block now get a fixed width.
+test("replies with a sideways-scrolling block get a fixed-width bubble", () => {
+  const short = "Here you go:\n\n```\nabc def\nghi jkl\nmno\n```\n\nThat's the short version.";
+  const table = "Totals:\n\n| Category | Spent |\n|---|---:|\n| Food | 120 |\n\nAll under budget.";
+  assert.strictEqual(m.scrollsSideways(short), true, "short code block scrolls sideways");
+  assert.strictEqual(m.scrollsSideways(table), true, "tables scroll sideways");
+  assert.strictEqual(m.scrollsSideways("> quoted\n>\n> ```\n> x = 1\n> ```"), true, "inside a quote");
+  assert.strictEqual(m.scrollsSideways("- item\n\n  ```\n  y = 2\n  ```"), true, "inside a list");
+  assert.strictEqual(m.scrollsSideways("Just prose, with `inline code` and **bold**."), false);
+  const wrapped = "```\n" + "word ".repeat(60) + "\n```";
+  assert.strictEqual(m.scrollsSideways(wrapped), false, "code that wraps doesn't scroll");
+  const reply = fx.find((x) => x.content.includes("```"));
+  assert.strictEqual(typeof m.scrollsSideways(reply.content), "boolean");
+  const chat = readFileSync("app/bot/[botId].tsx", "utf8");
+  assert.match(chat, /const wide = !!t\.text && scrollsSideways\(t\.text\);/);
+  assert.match(chat, /style=\{wide \? \{ width: "94%" \} : \{ maxWidth: "94%" \}\}/);
+});

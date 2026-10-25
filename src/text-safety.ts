@@ -1,5 +1,6 @@
 // Pure helpers that keep odd replies from breaking the chat: safe link schemes, tidy whitespace, and
 // a cap on how much of a huge reply renders at once.
+import { parse, type Block } from "./md";
 
 /** Only web, mail and phone links open; javascript:, intent:, file:, content: and the rest don't. */
 export function safeHref(href: string): string | undefined {
@@ -108,3 +109,14 @@ function splitPara(p: string, max: number): string[] {
  *  can draw, so blocks with lines past this wrap instead. */
 export const WRAP_CODE_AT = 160;
 export const wrapsCode = (code: string) => code.split("\n").some((l) => l.length > WRAP_CODE_AT);
+
+/** True when a reply has a block that scrolls sideways (a code block that doesn't wrap, or a table).
+ *  Such a bubble must have a definite width: on Android a shrink-to-fit bubble around a horizontal
+ *  ScrollView gets laid out far taller than its content, so it shows as a tall empty grey box that
+ *  also overlaps the message above (the real "grey box" cause, reproduced on an Android emulator:
+ *  a 3-line code block between two short paragraphs left ~1,000 px of empty bubble). */
+export function scrollsSideways(text: string): boolean {
+  const walk = (bs: Block[]): boolean => bs.some((b) =>
+    b.k === "table" || (b.k === "code" && !wrapsCode(b.s)) || (b.k === "quote" && walk(b.c)) || (b.k === "list" && b.items.some(walk)));
+  return walk(parse(text));
+}

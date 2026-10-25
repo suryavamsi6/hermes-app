@@ -15,7 +15,7 @@ import type { Bot } from "../../src/backend";
 import type { AssistantTurn, Turn, UserTurn } from "../../src/chat-model";
 import type { Attachment, FileAttachment } from "../../src/attach";
 import { ChatFollow } from "../../src/chat-follow";
-import { pieces } from "../../src/text-safety";
+import { pieces, scrollsSideways } from "../../src/text-safety";
 import { canSteer as steerable, chatToMarkdown, editableLast, findMatches, runningTurn } from "../../src/chat-tools";
 import { clearBotNotifications } from "../../src/notify";
 import { ApprovalCard } from "../../src/ui/approval-card";
@@ -78,6 +78,8 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highligh
   if (turn.role === "user") return <Rise play={fresh}><UserRow t={turn} time={time} reaction={reaction} longPress={longPress} unreact={() => react(turn.id, null)} quote={() => onQuote(turn)} highlight={highlight} /></Rise>;
   const t = turn as AssistantTurn;
   const activity = activityLine(t);
+  // A bubble with a sideways-scrolling block (code, table) gets a fixed width: see scrollsSideways.
+  const wide = !!t.text && scrollsSideways(t.text);
   const showStatus = usePrefs((p) => p.showStatus);
   const canRetry = !!t.prompt;
   const lost = t.errorCode === "connection_lost";
@@ -107,7 +109,7 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highligh
       {t.approval ? <Rise scale={0.96}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} onEdit={(d) => setDraftText(bot.id, `Don't run that. Instead:\n${d}`)} /></Rise> : null}
       {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>↪ You added: {s}</Text>) : null}
       {t.text ? (
-        <SwipeQuote onQuote={() => onQuote(turn)} style={{ maxWidth: "94%" }}>
+        <SwipeQuote onQuote={() => onQuote(turn)} style={wide ? { width: "94%" } : { maxWidth: "94%" }}>
           {/* A long reply is a stack of pieces that read as one card (never one giant view, see pieces()). */}
           <Markdown text={t.text} highlight={highlight} streaming={t.status === "streaming"} wrap={(c, i, n) => (
             <Pressable onLongPress={longPress} delayLongPress={300}
