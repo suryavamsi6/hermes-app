@@ -8,6 +8,8 @@ import { setDraftText, useDraft } from "../app-state";
 import { type Attachment, MAX_ATTACHMENTS, pickImages, setAttachments, useAttachments } from "../attach";
 import { useDictation } from "./dictation";
 import { tapHaptic } from "./haptics";
+import Reanimated from "react-native-reanimated";
+import { enter, PressScale } from "./motion";
 import { colors, font, radii, type } from "./theme";
 
 type Props = {
@@ -98,13 +100,16 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
                 <Square size={14} color={colors.muted} fill={colors.muted} />
               </Pressable>
             ) : null}
-            <Pressable accessibilityLabel={mode === "stop" ? "Stop" : mode === "steer" ? "Add to this reply" : "Send"} disabled={mode === "send" && !canSend}
-              onPress={press}
+            <PressScale accessibilityLabel={mode === "stop" ? "Stop" : mode === "steer" ? "Add to this reply" : "Send"} disabled={mode === "send" && !canSend}
+              onPress={press} to={0.86}
               style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: colors.action, opacity: mode === "send" && !canSend ? 0.35 : 1 }}>
-              {mode === "stop" ? <Square size={14} color={colors.actionForeground} fill={colors.actionForeground} />
-                : mode === "steer" ? <CornerDownRight size={19} color={colors.actionForeground} />
-                : <ArrowUp size={20} color={colors.actionForeground} />}
-            </Pressable>
+              {/* Keyed by mode: the icon pops when send turns into stop (and back). */}
+              <Reanimated.View key={mode} entering={enter.pop}>
+                {mode === "stop" ? <Square size={14} color={colors.actionForeground} fill={colors.actionForeground} />
+                  : mode === "steer" ? <CornerDownRight size={19} color={colors.actionForeground} />
+                  : <ArrowUp size={20} color={colors.actionForeground} />}
+              </Reanimated.View>
+            </PressScale>
           </View>
         </View>
       </View>

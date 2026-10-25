@@ -36,7 +36,9 @@ export default function RootLayout() {
       <AppProvider>
         <NotificationTaps />
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: "fade" }}>
+        {/* Screens slide in from the right (native stack, UI thread); Home and modals keep their own. */}
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: "slide_from_right", animationDuration: 260 }}>
+          <Stack.Screen name="index" options={{ animation: "fade" }} />
           <Stack.Screen name="settings" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         </Stack>
       </AppProvider>

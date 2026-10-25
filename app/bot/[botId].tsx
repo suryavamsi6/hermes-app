@@ -22,6 +22,8 @@ import { activityLine } from "../../src/ui/activity";
 import { Avatar, Chip } from "../../src/ui/kit";
 import { ActivityRow } from "../../src/ui/activity-row";
 import { ModelPicker } from "../../src/ui/model-picker";
+import { enter, leave, PressScale, Rise } from "../../src/ui/motion";
+import Reanimated from "react-native-reanimated";
 import { Markdown, MarkedText } from "../../src/ui/markdown";
 import { MessageMenu, quoteOf } from "../../src/ui/message-menu";
 import { ReactionBadge } from "../../src/ui/reactions";
@@ -37,7 +39,7 @@ const SUGGESTIONS: Record<string, string[]> = {
   market: ["Market mood today?", "How are my holdings?", "Explain today's move"],
 };
 
-type RowProps = { turn: Turn; bot: Bot; isLast: boolean; time?: string; highlight?: string; onLong: (t: Turn) => void; onQuote: (t: Turn) => void; onRetry: (id: string) => void };
+type RowProps = { turn: Turn; bot: Bot; isLast: boolean; time?: string; fresh?: boolean; highlight?: string; onLong: (t: Turn) => void; onQuote: (t: Turn) => void; onRetry: (id: string) => void };
 
 /** Swipe a bubble left to quote it (Grok-style). Only claims clearly horizontal left drags, so
  *  scrolling the list and long-pressing still work. */
@@ -55,11 +57,11 @@ function SwipeQuote({ onQuote, children }: { onQuote: () => void; children: Reac
 }
 
 /** Memoised: while a reply streams, only the streaming row re-renders (other turns keep their identity). */
-const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, highlight, onLong, onQuote, onRetry }: RowProps) {
+const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highlight, onLong, onQuote, onRetry }: RowProps) {
   const { react, approve } = useApp();
   const reaction = useReaction(turn.id);
   const longPress = () => onLong(turn);
-  if (turn.role === "user") return <UserRow t={turn} time={time} reaction={reaction} longPress={longPress} unreact={() => react(turn.id, null)} quote={() => onQuote(turn)} highlight={highlight} />;
+  if (turn.role === "user") return <Rise play={fresh}><UserRow t={turn} time={time} reaction={reaction} longPress={longPress} unreact={() => react(turn.id, null)} quote={() => onQuote(turn)} highlight={highlight} /></Rise>;
   const t = turn as AssistantTurn;
   const activity = activityLine(t);
   const canRetry = !!t.prompt;
@@ -83,10 +85,10 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, highlight, onLo
       </View>
     ) : null;
   return (
-    <View style={{ gap: 8, alignItems: "flex-start" }}>
+    <Rise play={fresh} style={{ gap: 8, alignItems: "flex-start" }}>
       {t.steps.length ? <View style={{ paddingLeft: 4 }}><StepsRow steps={t.steps} /></View> : null}
       {activity ? <ActivityRow bot={bot} text={activity} /> : null}
-      {t.approval ? <ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} /> : null}
+      {t.approval ? <Reanimated.View entering={enter.pop} exiting={leave.fade}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} /></Reanimated.View> : null}
       {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>↪ You added: {s}</Text>) : null}
       {t.text ? (
         <SwipeQuote onQuote={() => onQuote(turn)}>
@@ -99,7 +101,7 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, highlight, onLo
       {reaction ? <ReactionBadge emoji={reaction} align="flex-start" onPress={() => react(turn.id, null)} /> : null}
       {note ? <View style={{ paddingLeft: 4 }}>{note}</View> : null}
       {time && t.status !== "streaming" ? <Text style={[type.label, { paddingLeft: 6, fontSize: 12, color: colors.dim }]}>{time}</Text> : null}
-    </View>
+    </Rise>
   );
 });
 
@@ -140,8 +142,9 @@ const DayDivider = memo(function DayDivider({ label }: { label: string }) {
 /** Round "jump to the newest message" button with a count of messages that arrived while scrolled up. */
 function JumpButton({ unseen, onPress }: { unseen: number; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={unseen ? `Jump to the latest message, ${unseen} new` : "Jump to the latest message"}
-      style={{ position: "absolute", bottom: 12, alignSelf: "center", width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
+    <Reanimated.View entering={enter.pop} exiting={leave.pop} style={{ position: "absolute", bottom: 12, alignSelf: "center" }}>
+    <PressScale onPress={onPress} accessibilityRole="button" accessibilityLabel={unseen ? `Jump to the latest message, ${unseen} new` : "Jump to the latest message"} to={0.9}
+      style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
         backgroundColor: colors.floating, borderWidth: 1, borderColor: colors.borderStrong, elevation: 4 }}>
       <ArrowDown size={22} color={colors.text} />
       {unseen ? (
@@ -149,7 +152,8 @@ function JumpButton({ unseen, onPress }: { unseen: number; onPress: () => void }
           <Text style={{ color: colors.actionForeground, fontSize: 11, fontWeight: "700" }}>{unseen > 99 ? "99+" : unseen}</Text>
         </View>
       ) : null}
-    </Pressable>
+    </PressScale>
+    </Reanimated.View>
   );
 }
 
@@ -226,6 +230,16 @@ export default function BotChatScreen() {
   const chat = useChat(bot?.id);
   const turns = chat.turns;
   const rows = useMemo(() => buildRows(turns), [turns]);
+  // Only messages that arrive while the chat is open animate in (never history), each once. Keyed by
+  // role+time because a re-sync rebuilds turn ids.
+  const openedAt = useRef(Date.now() - 1000);
+  const played = useRef(new Set<string>());
+  const isFresh = (t: Turn) => {
+    if (!t.at || t.at < openedAt.current) return false;
+    const k = `${t.role}:${t.at}`;
+    if (played.current.has(k)) return false;
+    played.current.add(k); return true;
+  };
   const [menu, setMenu] = useState<Turn | null>(null);
   const menuReaction = useReaction(menu?.id ?? "");
   // "…" menu, the model picker sheet it opens, and in-chat search.
@@ -282,7 +296,7 @@ export default function BotChatScreen() {
   const onLong = useCallback((t: Turn) => setMenu(t), []);
   const onRetry = useCallback((id: string) => { if (bot) void retry(bot, id); }, [bot, retry]);
   const render = useCallback(({ item }: { item: ChatRow }) => !bot ? null : item.kind === "day" ? <DayDivider label={item.label} /> : (
-    <TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} time={item.time} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} />
+    <TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} time={item.time} fresh={isFresh(item.turn)} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} />
   ), [bot, lastAssistant?.id, onLong, onQuote, onRetry, searching, query]);
   const onSend = useCallback((t: string, images: Attachment[] = []) => { if (!bot) return; setEditing(null); if (awayRef.current) jump(); void send(bot, t, images); }, [bot, send, jump]);
   const onSteer = useCallback(async (t: string) => {

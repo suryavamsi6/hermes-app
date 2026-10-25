@@ -6,6 +6,7 @@ import { BOT_CHAT_TITLE } from "../../src/backend";
 import { useLoad } from "../../src/use-load";
 import { Empty, ErrorText, Row, Screen, Section } from "../../src/ui/kit";
 import { colors } from "../../src/ui/theme";
+import { SkeletonRows } from "../../src/ui/motion";
 
 export default function HistoryScreen() {
   const { botId } = useLocalSearchParams<{ botId: string }>();
@@ -22,6 +23,7 @@ export default function HistoryScreen() {
             title={s.title === BOT_CHAT_TITLE ? "Bot Chat (main)" : s.title} detail={s.updated ? String(s.updated) : undefined} />
         ))}
       </Section>
+      {sessions.loading && !sessions.data ? <SkeletonRows rows={4} /> : null}
       {sessions.data && !list.length ? <Empty emoji="🗂️" title="Nothing older" body="Routine runs and side threads will show up here." /> : null}
       <ErrorText error={sessions.error} />
     </Screen>

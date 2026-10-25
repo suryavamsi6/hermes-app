@@ -1,5 +1,16 @@
 # TODO (after the Oct 25, 2026 session)
 
+## v0.9.3 (versionCode 15): motion
+- react-native-reanimated 4.7.1 + react-native-worklets 0.13.0 (via `npx expo install`). Shared
+  primitives in `src/ui/motion.tsx` (Rise, PressScale, Skeleton/SkeletonRows, usePulse, enter/leave
+  presets); UI thread, transform/opacity only, Reduce Motion respected.
+- New messages rise in (history never animates; each message once), approval card pops in, live
+  status line crossfades between steps, send button presses and its icon pops when it becomes Stop,
+  jump-to-bottom button scales in/out, sheets spring up, Home staggers in once per launch, hero
+  press-scale, skeleton loaders (bot settings, routines, history, memory, plugin/MCP catalogs),
+  screens slide in from the right.
+- Not done: per-token text fade while streaming (Markdown re-layout would jank); test on the S25.
+
 ## v0.9.2 (versionCode 14), Oct 25 evening
 - Grok-style times: "Today 4:28 PM" dividers on a new day or after a 15-minute gap, and a small
   time at the end of each burst of messages (`src/ui/chat-rows.ts`).

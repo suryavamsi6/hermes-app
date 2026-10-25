@@ -9,6 +9,7 @@ import { useApp, useBot } from "../../src/app-state";
 import { useLoad } from "../../src/use-load";
 import { Button, Chip, ComingSoon, Empty, ErrorText, Field, Row, Screen, Section, Toggle } from "../../src/ui/kit";
 import { colors, font, type } from "../../src/ui/theme";
+import { SkeletonRows } from "../../src/ui/motion";
 
 export default function McpScreen() {
   const { botId } = useLocalSearchParams<{ botId: string }>();
@@ -49,7 +50,7 @@ export default function McpScreen() {
                 onOpen={() => { setOpen(open === e.name ? null : e.name); setEnv({}); setError(null); }}
                 onEnv={(k, v) => setEnv({ ...env, [k]: v })}
                 onInstall={async () => { setBusy(true); setError(null); try { await backend.installMcpCatalog!(bot, e.name, env); setOpen(null); setEnv({}); setChanged(true); await catalog.reload(); void servers.reload(); } catch (err: any) { setError(String(err?.message ?? err)); } finally { setBusy(false); } }} />)}
-              {catalog.loading && !catalog.data ? <Text style={[type.bodySm, { textAlign: "center" }]}>Loading the catalog…</Text> : null}
+              {catalog.loading && !catalog.data ? <SkeletonRows /> : null}
               {catalog.data?.length === 0 ? <Empty emoji="📚" title="Catalog is empty" body="This Hermes has no approved MCP entries." /> : null}
               {changed ? <Text style={[type.bodySm, { color: colors.success }]}>Installed. Open Connected and tap "Restart Hermes to apply".</Text> : null}
               <ErrorText error={catalog.error} />

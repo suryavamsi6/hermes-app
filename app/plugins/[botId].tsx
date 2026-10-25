@@ -10,6 +10,7 @@ import type { CatalogPlugin, Plugin } from "../../src/backend";
 import { useLoad } from "../../src/use-load";
 import { Button, Chip, ComingSoon, Empty, ErrorText, Row, Screen, Section, Toggle } from "../../src/ui/kit";
 import { colors, font, radii, type } from "../../src/ui/theme";
+import { SkeletonRows } from "../../src/ui/motion";
 
 const KIND_LABEL: Record<Plugin["kind"], string> = { tools: "🧰 Tools", browser: "🌐 Browser", "context-engine": "🧩 Context engine", "memory-provider": "🧠 Memory", "model-provider": "🤖 Models", platform: "💬 Platform" };
 
@@ -114,7 +115,7 @@ export default function PluginsScreen() {
             </Section>
           ))}
           {catalog.data && entries.length === 0 ? <Empty emoji="🔎" title="Nothing found" body={query ? "Try another word." : "Hermes's catalog is empty."} /> : null}
-          {catalog.loading && !catalog.data ? <Text style={[type.bodySm, { textAlign: "center" }]}>Loading the marketplace…</Text> : null}
+          {catalog.loading && !catalog.data ? <SkeletonRows /> : null}
           <ErrorText error={catalog.error} />
         </>
       )}

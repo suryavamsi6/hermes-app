@@ -9,6 +9,7 @@ import type { Bot, Job } from "../src/backend";
 import { useLoad } from "../src/use-load";
 import { Avatar, Button, Chip, Empty, ErrorText, Field, Screen, Section } from "../src/ui/kit";
 import { colors, type } from "../src/ui/theme";
+import { SkeletonRows } from "../src/ui/motion";
 
 const PRESETS = [["Every morning", "0 8 * * *"], ["Weekdays 9:00", "0 9 * * 1-5"], ["Hourly", "0 * * * *"], ["Sundays", "0 10 * * 0"]];
 
@@ -55,6 +56,7 @@ export default function Routines() {
           {e ? <View style={{ padding: 14 }}><ErrorText error={e} /></View> : null}
         </Section>
       ))}
+      {jobs.loading && !jobs.data ? <SkeletonRows rows={4} /> : null}
       {jobs.data && groups.every((g) => !g.jobs.length) ? <Empty emoji="⏰" title="Nothing scheduled" body="Routines are Hermes cron jobs. Add one below and its results land in the bot's chat." /> : null}
       {target ? (
         <Section title={`New routine for ${target.emoji} ${target.name}`}>

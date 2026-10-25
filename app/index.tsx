@@ -3,12 +3,16 @@
 // button + Search pill at the bottom. Long-press any bot to make it primary.
 import { Redirect, router, useFocusEffect } from "expo-router";
 import { CalendarClock, CircleAlert, LayoutGrid, Palette, Plus, Search, Settings, Star, UserRound, X } from "lucide-react-native";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Bot } from "../src/backend";
 import { useApp, useBusy, useLastAt, useMood, usePreview, useUnread } from "../src/app-state";
 import { Avatar } from "../src/ui/kit";
+import { PressScale, Rise } from "../src/ui/motion";
+
+/** The list staggers in once per app launch, not every time Home re-mounts. */
+let introPlayed = false;
 import { Sheet, SheetRow } from "../src/ui/sheet";
 import { relTime } from "../src/ui/time";
 import { colors, font, type } from "../src/ui/theme";
@@ -18,6 +22,8 @@ const open = (b: Bot) => router.push(`/bot/${encodeURIComponent(b.id)}`);
 
 export default function Home() {
   const { ready, backend, bots, demo, primaryId, setPrimary, reloadBots } = useApp();
+  const intro = useRef(!introPlayed).current;
+  useEffect(() => { introPlayed = true; }, []);
   // With hermes-bridge the roster is the server's profile list: refresh it whenever Home shows again.
   useFocusEffect(useCallback(() => { void reloadBots(); }, [reloadBots]));
   const notice = backend?.notice?.() ?? null;
@@ -48,8 +54,8 @@ export default function Home() {
       {notice ? <Notice text={notice} onSettings={() => router.push("/settings")} /> : null}
       <FlatList
         data={others} keyExtractor={(b) => b.id} keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={!query && primary ? <Hero bot={primary} onLong={onLong} /> : undefined}
-        renderItem={({ item }) => <BotRow bot={item} onLong={onLong} primary={item.id === primary?.id} />}
+        ListHeaderComponent={!query && primary ? <Rise play={intro} scale={0.94} dy={0}><Hero bot={primary} onLong={onLong} /></Rise> : undefined}
+        renderItem={({ item, index }) => <Rise play={intro && index < 12} delay={80 + index * 45}><BotRow bot={item} onLong={onLong} primary={item.id === primary?.id} /></Rise>}
         ListEmptyComponent={query ? <Text style={[type.bodySm, { color: colors.muted, textAlign: "center", marginTop: 40 }]}>No bots match "{q.trim()}"</Text>
           : !bots.length ? <Text style={[type.bodySm, { color: colors.muted, textAlign: "center", marginTop: 40 }]}>Loading your bots…</Text> : undefined}
         contentContainerStyle={{ paddingBottom: 12 }}
@@ -93,7 +99,7 @@ export default function Home() {
 const Hero = memo(function Hero({ bot, onLong }: { bot: Bot; onLong: (b: Bot) => void }) {
   const mood = useMood(bot.id), busy = useBusy(bot.id);
   return (
-    <Pressable onPress={() => open(bot)} onLongPress={() => onLong(bot)} accessibilityLabel={`Open ${bot.name} (primary)`}
+    <PressScale onPress={() => open(bot)} onLongPress={() => onLong(bot)} accessibilityLabel={`Open ${bot.name} (primary)`} to={0.97}
       style={{ alignItems: "center", paddingTop: 18, paddingBottom: 26, gap: 12 }}>
       <View>
         <Avatar bot={bot} size={128} mood={mood} badge={false} />
@@ -104,7 +110,7 @@ const Hero = memo(function Hero({ bot, onLong }: { bot: Bot; onLong: (b: Bot) =>
       </View>
       <Text style={[type.title, { fontSize: 24, lineHeight: 30 }]}>{bot.name}</Text>
       {busy ? <Text style={[type.label, { color: colors.accentText, marginTop: -6 }]}>thinking…</Text> : null}
-    </Pressable>
+    </PressScale>
   );
 });
 

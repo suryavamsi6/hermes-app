@@ -10,6 +10,7 @@ import type { Memory } from "../../src/backend";
 import { useLoad } from "../../src/use-load";
 import { Button, ComingSoon, ErrorText, Field, Row, Screen, Section } from "../../src/ui/kit";
 import { colors, type } from "../../src/ui/theme";
+import { SkeletonRows } from "../../src/ui/motion";
 
 const size = (n: number) => (n === 0 ? "empty" : n < 1024 ? `${n} bytes` : `${(n / 1024).toFixed(1)} KB`);
 
@@ -43,7 +44,7 @@ function LiveMemory() {
           ))}
         </Section>
       </> : null}
-      {st.loading && !st.data ? <Text style={[type.bodySm, { textAlign: "center" }]}>Loading…</Text> : null}
+      {st.loading && !st.data ? <SkeletonRows /> : null}
       <ErrorText error={st.error} />
     </Screen>
   );

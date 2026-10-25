@@ -12,6 +12,7 @@ import { KEY_WARNING, useSetupChat } from "../../src/ui/setup-chat";
 import { useLoad } from "../../src/use-load";
 import { Avatar, Button, ComingSoon, ErrorText, Field, Row, Screen, Section, Toggle } from "../../src/ui/kit";
 import { ModelPicker } from "../../src/ui/model-picker";
+import { SkeletonRows } from "../../src/ui/motion";
 import { colors, type } from "../../src/ui/theme";
 
 export default function BotInfo() {
@@ -84,6 +85,7 @@ export default function BotInfo() {
           <Row key={t.name} title={t.label} detail={t.description} last={i === all.length - 1}
             right={<Toggle value={t.enabled} disabled={!canToggle} onChange={async (v) => { await backend.setToolset(bot, t.name, v); void toolsets.reload(); }} />} />
         ))}
+        {toolsets.loading && !toolsets.data ? <SkeletonRows /> : null}
         {toolsets.error ? <View style={{ padding: 12 }}><ErrorText error={toolsets.error} /></View> : null}
       </Section>
 
@@ -96,6 +98,7 @@ export default function BotInfo() {
           }} /> : undefined} />)}
         {skillError ? <View style={{ padding: 12 }}><ErrorText error={skillError} /></View> : null}
         {skills.data?.length === 0 ? <View style={{ padding: 14 }}><Text style={type.label}>No skills yet. {bot.name} learns them as it works.</Text></View> : null}
+        {skills.loading && !skills.data ? <SkeletonRows /> : null}
         {skills.error ? <View style={{ padding: 12 }}><ErrorText error={skills.error} /></View> : null}
       </Section>
 
