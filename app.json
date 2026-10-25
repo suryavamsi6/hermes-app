@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Hermes",
+    "slug": "hermes-mobile",
+    "scheme": "hermes",
+    "version": "0.8.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "android": {
+      "package": "home.surya.hermesmobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#000000"
+      },
+      "versionCode": 11
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "./plugins/with-high-refresh-rate"
+    ],
+    "icon": "./assets/icon.png"
+  }
+}
