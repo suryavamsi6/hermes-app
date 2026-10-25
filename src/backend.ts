@@ -36,7 +36,7 @@ export type Plugin = { name: string; kind: PluginKind; description: string; vers
   toggleHint?: string; source?: string };
 /** Memory as hermes-bridge reports it: the active provider and the built-in files' sizes (not their text). */
 export type MemoryStatus = { active: string; providers: { name: string; description: string; available: boolean; configured: boolean; status?: string }[]; files: { memory: number; user: number } };
-export type ModelOption = { id: string; provider?: string; label: string };
+export type ModelOption = { id: string; provider?: string; label: string; providerName?: string };
 /** One entry of Hermes's curated plugin marketplace (dashboard /api/dashboard/plugins/catalog). */
 export type CatalogPlugin = { name: string; title: string; description: string; maintainer?: string; tier?: string; category?: string;
   version?: string; installed: boolean; updateAvailable: boolean; requiresEnv: string[]; tools: string[] };
@@ -47,7 +47,7 @@ export type McpCatalogEntry = { name: string; description: string; transport: st
   requiredEnv: { name: string; prompt?: string; required: boolean }[]; installed: boolean; enabled: boolean; command?: string; url?: string };
 export type SessionInfo = { id: string; title: string; updated?: string };
 
-/** Live mode needs hermes-bridge for these (editPersona/deleteBot stay server-side even with it). */
+/** Live mode needs hermes-bridge for these (deleteBot stays server-side even with it). */
 export type BridgeFeature = "createBot" | "editPersona" | "deleteBot" | "toggleToolsets" | "toggleSkills" | "memory" | "mcp" | "plugins";
 
 /** Thrown in live mode when a feature needs hermes-bridge and no bridge key is set. */
@@ -74,6 +74,9 @@ export interface Backend {
   /** Live only: verify /p/<profile>/ is served and `apiKey` is that profile's key; throws a readable error. */
   checkProfile?(profile: string, apiKey: string): Promise<void>;
   listSessions(b: Bot): Promise<SessionInfo[]>;
+  /** The persona (SOUL.md). Live: via hermes-bridge's /soul endpoints. */
+  getPersona?(b: Bot): Promise<string>;
+  setPersona?(b: Bot, text: string): Promise<void>;
   listModels(b: Bot): Promise<ModelOption[]>;
   listSkills(b: Bot): Promise<Skill[]>;
   setSkill?(b: Bot, name: string, enabled: boolean): Promise<void>;

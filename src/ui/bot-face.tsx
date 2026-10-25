@@ -1,6 +1,7 @@
-// Animated cartoon face for a bot: rounded tile in the bot's colour, two eyes with pupils, a mouth,
-// and the bot's emoji as a small badge. Only transform/opacity are animated, so every animation runs
-// on the native driver. Personality (eye shape/spacing, blink rate, mouth width) comes from a seed.
+// Animated face for a bot, calm and minimal like Grok Bot's avatar: a tile in the bot's colour with
+// two well-spaced solid oval eyes (no pupils, no mouth) that blink and glance, and the bot's emoji as
+// a small badge. Only transform/opacity are animated, so every animation runs
+// on the native driver. Personality (eye shape/spacing, blink rate) comes from a seed.
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
@@ -59,8 +60,8 @@ function moodLoop(mood: FaceMood, drift: number): { period: number; loop: boolea
     case "thinking":
       return { period: 1200, loop: true, y: flat, scale: flat,
         x: keys(1200, [[0, -0.8], [180, 0.8], [600, 0.8], [820, -0.8], [1200, -0.8]]),
-        hop: keys(1200, [[0, 0], [130, -0.045], [260, -0.06], [390, -0.045], [520, 0], [600, 0], [730, -0.045], [860, -0.06], [990, -0.045], [1120, 0], [1200, 0]]),
-        tilt: sine(1, 8, -4) };
+        hop: keys(1200, [[0, 0], [260, -0.025], [520, 0], [600, 0], [860, -0.025], [1120, 0], [1200, 0]]),
+        tilt: sine(1, 4, -2) };
     case "happy":
       return { period: 700, loop: false, x: flat, y: flat, tilt: flat,
         hop: keys(700, [[0, 0], [90, -0.12], [180, -0.18], [300, -0.04], [380, 0], [450, -0.06], [520, -0.08], [620, 0], [660, -0.01], [700, 0]]),
@@ -75,7 +76,7 @@ function moodLoop(mood: FaceMood, drift: number): { period: number; loop: boolea
 /** Where each mood's face rests (offsets above animate around it). */
 const POSE: Record<FaceMood, { x: number; y: number; hop: number; tilt: number }> = {
   idle: { x: 0, y: 0, hop: 0, tilt: 0 }, happy: { x: 0, y: 0, hop: 0, tilt: 0 }, thinking: { x: 0, y: -0.75, hop: 0, tilt: 0 },
-  approval: { x: 0.7, y: -0.2, hop: 0, tilt: 9 }, error: { x: 0, y: 0.5, hop: 0.03, tilt: -3 },
+  approval: { x: 0.7, y: -0.2, hop: 0, tilt: 5 }, error: { x: 0, y: 0.5, hop: 0.03, tilt: -3 },
 };
 
 // Every animation here is a single native-driver timing (no JS per frame or per loop iteration), and the
@@ -124,8 +125,9 @@ export const BotFace = memo(function BotFace({ seed, color, color2, shape = "rou
   }, [mood, live, loop, clock, pose]);
 
   const s = size;
-  const eyeW = s * p.eyeW, eyeH = s * p.eyeH, pupil = eyeW * p.pupil;
-  const travelX = (eyeW - pupil) / 2, travelY = (eyeH - pupil) / 2;
+  const eyeW = s * p.eyeW, eyeH = s * p.eyeH;
+  // The whole eye glances (there are no pupils): a few percent of the tile each way.
+  const travelX = s * 0.04, travelY = s * 0.025;
   const nodes = useMemo(() => {
     const ch = (base: Animated.Value, k: Keys) => Animated.add(base, clock.interpolate(k));
     return {
@@ -138,7 +140,7 @@ export const BotFace = memo(function BotFace({ seed, color, color2, shape = "rou
   }, [clock, blinkClock, pose, loop, travelX, travelY, s]);
 
   const cx = s / 2, eyeTop = s * p.eyeY, gap = s * p.gap;
-  const { fg: light, pupil: ink } = faceInk(color, color2); // features flip to dark ink on light tiles
+  const { fg: light } = faceInk(color, color2); // features flip to dark ink on light tiles
 
   const eye = (side: -1 | 1) => {
     const left = cx + side * (gap / 2 + eyeW / 2) - eyeW / 2;
@@ -148,36 +150,18 @@ export const BotFace = memo(function BotFace({ seed, color, color2, shape = "rou
       </View>;
     const flat = mood === "error";
     return (
-      <Animated.View key={side} style={{ position: "absolute", left, top: eyeTop + (flat ? eyeH * 0.35 : 0), width: eyeW, height: flat ? eyeH * 0.32 : eyeH,
-        borderRadius: Math.min(eyeW, eyeH) / 2, backgroundColor: light, alignItems: "center", justifyContent: "center", overflow: "hidden",
-        transform: [{ scaleY: nodes.blink }] }}>
-        {!flat ? <Animated.View style={{ width: pupil, height: pupil, borderRadius: pupil / 2, backgroundColor: ink,
-          transform: [{ translateX: nodes.px }, { translateY: nodes.py }] }} /> : null}
-      </Animated.View>
+      <Animated.View key={side} style={{ position: "absolute", left, top: eyeTop + (flat ? eyeH * 0.4 : 0), width: eyeW, height: flat ? Math.max(2, eyeH * 0.2) : eyeH,
+        borderRadius: eyeW / 2, backgroundColor: light,
+        transform: [{ translateX: nodes.px }, { translateY: nodes.py }, { scaleY: nodes.blink }] }} />
     );
   };
-  const brow = mood === "approval" ? (
-    <View style={{ position: "absolute", left: cx + gap / 2, top: eyeTop - s * 0.1, width: eyeW * 1.1, height: Math.max(1.5, s * 0.04), borderRadius: 2, backgroundColor: light, transform: [{ rotate: "-16deg" }] }} />
-  ) : null;
-
-  const mw = s * p.mouthW, mouthTop = s * 0.64, stroke = Math.max(1.5, s * 0.045);
-  let mouth: React.ReactNode;
-  if (mood === "thinking") mouth = <View style={{ position: "absolute", left: cx - s * 0.06, top: mouthTop, width: s * 0.12, height: s * 0.12, borderRadius: s, borderWidth: stroke, borderColor: light }} />;
-  else if (mood === "happy") mouth = <View style={{ position: "absolute", left: cx - mw * 0.6, top: mouthTop - s * 0.06, width: mw * 1.2, height: mw * 0.6, overflow: "hidden" }}>
-    <View style={{ width: mw * 1.2, height: mw * 1.2, borderRadius: mw, backgroundColor: light, marginTop: -mw * 0.6 }} />
-  </View>;
-  else if (mood === "error" || mood === "approval") mouth = <View style={{ position: "absolute", left: cx - mw * (mood === "error" ? 0.35 : 0.3), top: mouthTop + s * 0.03, width: mw * (mood === "error" ? 0.7 : 0.6), height: stroke, borderRadius: stroke, backgroundColor: light, transform: [{ rotate: mood === "approval" ? "-8deg" : "0deg" }] }} />;
-  else mouth = <View style={{ position: "absolute", left: cx - mw / 2, top: mouthTop - mw * 0.35, width: mw, height: mw * 0.5, overflow: "hidden" }}>
-    <View style={{ width: mw, height: mw, borderRadius: mw / 2, borderWidth: stroke, borderColor: light, marginTop: -mw * 0.5 }} />
-  </View>;
-
   const badgeSize = Math.max(14, s * 0.4);
   return (
     <View style={{ width: s, height: s }} accessibilityRole="image" accessibilityLabel={`${mood === "idle" ? "" : `${mood} `}bot face`}>
       <Animated.View style={{ width: s, height: s, opacity: mood === "error" ? 0.75 : 1,
         transform: [{ translateY: nodes.ty }, { rotate: nodes.rot }, { scale: nodes.scale }] }}>
         <ShapeTile shape={shape} color={color} color2={color2} size={s} />
-        {eye(-1)}{eye(1)}{brow}{mouth}
+        {eye(-1)}{eye(1)}
         {mood === "error" && s >= 30 ? <Text style={{ position: "absolute", right: s * 0.08, top: s * 0.02, fontSize: s * 0.2, color: light, opacity: 0.8 }}>z</Text> : null}
       </Animated.View>
       {badge && emoji && s >= 26 ? (

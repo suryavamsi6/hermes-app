@@ -117,6 +117,8 @@ export class DemoBackend implements Backend {
     return b;
   }
   async addExistingBot(b: Bot) { return this.createBot({ ...b, toolsets: ["web", "memory"] }); }
+  async getPersona(b: Bot) { return this.get(b).bot.persona ?? ""; }
+  async setPersona(b: Bot, text: string) { this.get(b).bot = { ...this.get(b).bot, persona: text }; }
   async updateBot(b: Bot) { this.get(b).bot = b; return b; }
   async removeBot(id: string) { this.data = this.data.filter((d) => d.bot.id !== id || id === "hermes"); }
   chat(b: Bot): ChatClient { return this.get(b).client; }

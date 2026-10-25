@@ -18,7 +18,10 @@ import { clearBotNotifications } from "../../src/notify";
 import { ApprovalCard } from "../../src/ui/approval-card";
 import { buildRows, type ChatRow } from "../../src/ui/chat-rows";
 import { Composer } from "../../src/ui/composer";
-import { Avatar, Chip, TypingDots } from "../../src/ui/kit";
+import { activityLine } from "../../src/ui/activity";
+import { Avatar, Chip } from "../../src/ui/kit";
+import { ActivityRow } from "../../src/ui/activity-row";
+import { ModelPicker } from "../../src/ui/model-picker";
 import { Markdown, MarkedText } from "../../src/ui/markdown";
 import { MessageMenu, quoteOf } from "../../src/ui/message-menu";
 import { ReactionBadge } from "../../src/ui/reactions";
@@ -34,7 +37,7 @@ const SUGGESTIONS: Record<string, string[]> = {
   market: ["Market mood today?", "How are my holdings?", "Explain today's move"],
 };
 
-type RowProps = { turn: Turn; bot: Bot; isLast: boolean; highlight?: string; onLong: (t: Turn) => void; onQuote: (t: Turn) => void; onRetry: (id: string) => void };
+type RowProps = { turn: Turn; bot: Bot; isLast: boolean; time?: string; highlight?: string; onLong: (t: Turn) => void; onQuote: (t: Turn) => void; onRetry: (id: string) => void };
 
 /** Swipe a bubble left to quote it (Grok-style). Only claims clearly horizontal left drags, so
  *  scrolling the list and long-pressing still work. */
@@ -52,13 +55,13 @@ function SwipeQuote({ onQuote, children }: { onQuote: () => void; children: Reac
 }
 
 /** Memoised: while a reply streams, only the streaming row re-renders (other turns keep their identity). */
-const TurnRow = memo(function TurnRow({ turn, bot, isLast, highlight, onLong, onQuote, onRetry }: RowProps) {
+const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, highlight, onLong, onQuote, onRetry }: RowProps) {
   const { react, approve } = useApp();
   const reaction = useReaction(turn.id);
   const longPress = () => onLong(turn);
-  if (turn.role === "user") return <UserRow t={turn} reaction={reaction} longPress={longPress} unreact={() => react(turn.id, null)} quote={() => onQuote(turn)} highlight={highlight} />;
+  if (turn.role === "user") return <UserRow t={turn} time={time} reaction={reaction} longPress={longPress} unreact={() => react(turn.id, null)} quote={() => onQuote(turn)} highlight={highlight} />;
   const t = turn as AssistantTurn;
-  const thinking = t.status === "streaming" && !t.text && !t.steps.length && !t.approval;
+  const activity = activityLine(t);
   const canRetry = !!t.prompt;
   const lost = t.errorCode === "connection_lost";
   const note = t.status === "failed" ? (
@@ -81,12 +84,8 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, highlight, onLong, on
     ) : null;
   return (
     <View style={{ gap: 8, alignItems: "flex-start" }}>
-      {thinking ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 4 }}>
-          <Avatar bot={bot} size={28} mood="thinking" badge={false} />
-          <TypingDots />
-        </View>
-      ) : t.steps.length ? <View style={{ paddingLeft: 4 }}><StepsRow steps={t.steps} running={t.status === "streaming" && !t.text} /></View> : null}
+      {t.steps.length ? <View style={{ paddingLeft: 4 }}><StepsRow steps={t.steps} /></View> : null}
+      {activity ? <ActivityRow bot={bot} text={activity} /> : null}
       {t.approval ? <ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} /> : null}
       {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>↪ You added: {s}</Text>) : null}
       {t.text ? (
@@ -99,6 +98,7 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, highlight, onLong, on
       ) : null}
       {reaction ? <ReactionBadge emoji={reaction} align="flex-start" onPress={() => react(turn.id, null)} /> : null}
       {note ? <View style={{ paddingLeft: 4 }}>{note}</View> : null}
+      {time && t.status !== "streaming" ? <Text style={[type.label, { paddingLeft: 6, fontSize: 12, color: colors.dim }]}>{time}</Text> : null}
     </View>
   );
 });
@@ -113,7 +113,7 @@ function RetryPill({ onPress }: { onPress: () => void }) {
   );
 }
 
-function UserRow({ t, reaction, longPress, unreact, quote, highlight }: { t: UserTurn; reaction?: string; longPress: () => void; unreact: () => void; quote: () => void; highlight?: string }) {
+function UserRow({ t, time, reaction, longPress, unreact, quote, highlight }: { t: UserTurn; time?: string; reaction?: string; longPress: () => void; unreact: () => void; quote: () => void; highlight?: string }) {
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
       <SwipeQuote onQuote={quote}>
@@ -128,6 +128,7 @@ function UserRow({ t, reaction, longPress, unreact, quote, highlight }: { t: Use
         </Pressable>
       </SwipeQuote>
       {reaction ? <ReactionBadge emoji={reaction} align="flex-end" onPress={unreact} /> : null}
+      {time ? <Text style={[type.label, { paddingRight: 6, fontSize: 12, color: colors.dim }]}>{time}</Text> : null}
     </View>
   );
 }
@@ -281,7 +282,7 @@ export default function BotChatScreen() {
   const onLong = useCallback((t: Turn) => setMenu(t), []);
   const onRetry = useCallback((id: string) => { if (bot) void retry(bot, id); }, [bot, retry]);
   const render = useCallback(({ item }: { item: ChatRow }) => !bot ? null : item.kind === "day" ? <DayDivider label={item.label} /> : (
-    <TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} />
+    <TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} time={item.time} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} />
   ), [bot, lastAssistant?.id, onLong, onQuote, onRetry, searching, query]);
   const onSend = useCallback((t: string, images: Attachment[] = []) => { if (!bot) return; setEditing(null); if (awayRef.current) jump(); void send(bot, t, images); }, [bot, send, jump]);
   const onSteer = useCallback(async (t: string) => {
@@ -347,15 +348,8 @@ export default function BotChatScreen() {
         <SheetRow icon={<Settings2 size={20} color={colors.text} />} label="Bot settings" onPress={() => { setChatMenu(false); router.push(`/bot-info/${bot.id}`); }} />
       </Sheet>
       <Sheet visible={modelSheet} onClose={() => setModelSheet(false)}>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 16, paddingVertical: 12 }}>
-          <Chip label="Profile default" selected={!bot.model} onPress={() => void pickModel(undefined)} />
-          {(models.data ?? []).slice(0, 12).map((mo) => (
-            <Chip key={`${mo.provider}/${mo.id}`} label={mo.id} selected={bot.model === mo.id} onPress={() => void pickModel(mo.id, mo.provider)} />
-          ))}
-        </View>
-        <Text style={[type.label, { color: colors.dim, paddingHorizontal: 20, paddingBottom: 8 }]}>
-          {models.loading ? "Loading models…" : models.error ? models.error : "Sent with each message, so it applies right away."}
-        </Text>
+        <ModelPicker models={models.data} loading={models.loading} error={models.error} selected={bot.model} selectedProvider={bot.provider}
+          onPick={(id, provider) => void pickModel(id, provider)} footer="Sent with each message, so it applies right away." />
       </Sheet>
     </View>
   );

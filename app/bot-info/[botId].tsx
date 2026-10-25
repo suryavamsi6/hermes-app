@@ -10,7 +10,8 @@ import type { Bot } from "../../src/backend";
 import { AppearancePicker, useCheer } from "../../src/ui/appearance-picker";
 import { KEY_WARNING, useSetupChat } from "../../src/ui/setup-chat";
 import { useLoad } from "../../src/use-load";
-import { Avatar, Button, Chip, ComingSoon, ErrorText, Field, Row, Screen, Section, Toggle } from "../../src/ui/kit";
+import { Avatar, Button, ComingSoon, ErrorText, Field, Row, Screen, Section, Toggle } from "../../src/ui/kit";
+import { ModelPicker } from "../../src/ui/model-picker";
 import { colors, type } from "../../src/ui/theme";
 
 export default function BotInfo() {
@@ -26,10 +27,15 @@ export default function BotInfo() {
   const toolsets = useLoad(bot && backend ? () => backend.listToolsets(bot) : null, [bot?.id, backend]);
   const skills = useLoad(bot && backend ? () => backend.listSkills(bot) : null, [bot?.id, backend]);
   const models = useLoad(bot && backend && !bot.needsKey ? () => backend.listModels(bot) : null, [bot?.id, backend, bot?.needsKey]);
+  // The persona lives in the profile's SOUL.md on the server; load it into the draft once.
+  const soulOn = !!(bot && backend?.getPersona && backend.supports("editPersona"));
+  const soul = useLoad(soulOn ? () => backend!.getPersona!(bot!) : null, [bot?.id, backend]);
+  const soulLoading = soulOn && soul.loading;
+  useEffect(() => { if (soul.data !== null) setDraft((d) => (d ? { ...d, persona: soul.data ?? "" } : d)); }, [soul.data]);
   const setup = useSetupChat();
   const [skillError, setSkillError] = useState<string | null>(null);
   if (!bot || !draft || !backend) return null;
-  const canPersona = backend.supports("editPersona");
+  const canPersona = soulOn && !!backend.setPersona && soul.data !== null && !soul.error;
   const canToggle = backend.supports("toggleToolsets");
   const canSkills = backend.supports("toggleSkills") && !!backend.setSkill;
   const fromServer = backend.kind === "live" && backend.supports("createBot"); // roster = the server's profiles
@@ -40,6 +46,7 @@ export default function BotInfo() {
     await backend!.updateBot({ ...bot!, ...patch }); await reloadBots();
   }
   async function save() {
+    if (canPersona && (draft!.persona ?? "") !== (soul.data ?? "")) { await backend!.setPersona!(bot!, draft!.persona ?? ""); void soul.reload(); }
     await backend!.updateBot(draft!); await reloadBots(); setSaved(true); setTimeout(() => setSaved(false), 1500);
   }
   return (
@@ -57,18 +64,18 @@ export default function BotInfo() {
       </Section>
       <Field label="Name" value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} />
       <Field label="Short description" value={draft.description} onChangeText={(description) => setDraft({ ...draft, description })} />
-      <Field label="Persona (SOUL.md)" multiline value={draft.persona ?? ""} editable={canPersona} placeholder={canPersona ? "How should this bot behave?" : "Edit SOUL.md on the homelab for now"}
+      <Field label="Persona (SOUL.md)" multiline value={draft.persona ?? ""} editable={canPersona} placeholder={canPersona ? "How should this bot behave?" : soulLoading ? "Loading SOUL.md…" : "Edit SOUL.md on the homelab for now"}
         onChangeText={(persona) => setDraft({ ...draft, persona })} />
-      {!canPersona ? (backend.kind === "live"
+      {soul.error ? <ErrorText error={soul.error} /> : null}
+      {!canPersona && !soulLoading ? (backend.kind === "live"
         ? <Text style={[type.label, { color: colors.dim }]}>The persona is {bot.profile === "default" ? "~/.hermes" : `~/.hermes/profiles/${bot.profile}`}/SOUL.md on the server. Edit it there.</Text>
         : <ComingSoon what="Editing the persona" />) : null}
 
       <Section title="Model" footer="Sent with each message, so it applies to this bot's chat right away.">
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 12 }}>
-          <Chip label="Profile default" selected={!draft.model} onPress={() => setDraft({ ...draft, model: undefined, provider: undefined })} />
-          {(models.data ?? []).slice(0, 12).map((m) => <Chip key={`${m.provider}/${m.id}`} label={m.id} selected={draft.model === m.id} onPress={() => setDraft({ ...draft, model: m.id, provider: m.provider })} />)}
+        <View style={{ paddingTop: 12 }}>
+          <ModelPicker models={models.data} loading={!bot.needsKey && models.loading} error={models.error} selected={draft.model} selectedProvider={draft.provider} maxHeight={320}
+            onPick={(model, provider) => setDraft({ ...draft, model, provider })} />
         </View>
-        <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}><ErrorText error={models.error} /></View>
       </Section>
       <Button title={saved ? "Saved ✓" : "Save changes"} onPress={() => void save()} />
 

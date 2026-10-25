@@ -25,7 +25,7 @@ const OWN_KEY = (profile: string) => `hermes.botchat.own.${profile}`;
 const titleTaken = (e: unknown) => e instanceof HermesError && e.status === 400 && e.code === "invalid_title";
 const arr = (r: any, ...keys: string[]): any[] => (Array.isArray(r) ? r : keys.map((k) => r?.[k]).find(Array.isArray) ?? []);
 
-const BRIDGE_FEATURES: BridgeFeature[] = ["createBot", "toggleToolsets", "toggleSkills", "memory", "mcp", "plugins"];
+const BRIDGE_FEATURES: BridgeFeature[] = ["createBot", "editPersona", "toggleToolsets", "toggleSkills", "memory", "mcp", "plugins"];
 /** Hermes profile ids: lowercase folder names (hermes_cli/profiles.py; the bridge checks the same rule). */
 export const PROFILE_ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 export const profileIdFrom = (name: string) =>
@@ -112,6 +112,14 @@ export class LiveBackend implements Backend {
   }
   async addExistingBot(b: Bot) { const { needsKey: _, ...keep } = b; await saveLook(Store, b.profile, b); const bots = await this.roster(); await this.saveRoster([...bots.filter((x) => x.id !== b.id), keep]); return b; }
   /** Edits a bot's phone-side details; a server profile seen only through the bridge joins the roster here. */
+  async getPersona(b: Bot) {
+    try { return (await this.need("editPersona").soul(b.profile)).content ?? ""; }
+    catch (e: any) {
+      if (e?.status === 404 && e?.code !== "unknown_profile") throw new Error("Update hermes-bridge on the homelab to see and edit SOUL.md here.");
+      throw e;
+    }
+  }
+  async setPersona(b: Bot, text: string) { await this.need("editPersona").setSoul(b.profile, text); }
   async updateBot(b: Bot) {
     const { needsKey: _, ...keep } = b;
     await saveLook(Store, b.profile, b);
@@ -179,11 +187,15 @@ export class LiveBackend implements Backend {
     return arr(r, "sessions", "data", "items").map((s) => ({ id: String(s.id ?? s.session_id), title: String(s.title || s.preview || "Untitled"), updated: s.updated_at ?? s.last_active }));
   }
   async listModels(b: Bot): Promise<ModelOption[]> {
-    const r: any = await this.client(b).call("/api/model/options");
+    // Only providers Hermes has credentials for (the default also lists unconfigured skeleton rows).
+    const r: any = await this.client(b).call("/api/model/options?include_unconfigured=false");
     const out: ModelOption[] = [];
-    for (const p of arr(r, "providers", "data")) for (const m of arr(p, "models")) {
+    const providers = arr(r, "providers", "data").filter((p: any) => p?.authenticated !== false);
+    // The profile's current provider first, like the dashboard picker.
+    providers.sort((a: any, b: any) => Number(!!b?.is_current) - Number(!!a?.is_current));
+    for (const p of providers) for (const m of arr(p, "models")) {
       const id = typeof m === "string" ? m : m.id ?? m.name;
-      if (id) out.push({ id, provider: p.slug ?? p.id ?? p.name, label: `${id}${p.name ? ` · ${p.name}` : ""}` });
+      if (id) out.push({ id, provider: p.slug ?? p.id ?? p.name, providerName: p.name ?? p.slug, label: `${id}${p.name ? ` · ${p.name}` : ""}` });
     }
     return out;
   }

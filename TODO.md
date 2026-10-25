@@ -1,5 +1,21 @@
 # TODO (after the Oct 25, 2026 session)
 
+## v0.9.2 (versionCode 14), Oct 25 evening
+- Grok-style times: "Today 4:28 PM" dividers on a new day or after a 15-minute gap, and a small
+  time at the end of each burst of messages (`src/ui/chat-rows.ts`).
+- Live status line instead of typing dots: "Running git status", "Searching the web for …",
+  "Reading main.py", Hermes's thinking summary (`reasoning.available`), else "Thinking"
+  (`src/ui/activity.ts`, `activity-row.tsx`).
+- Calmer faces: two well-spaced solid oval eyes, no pupils or mouth, gentler thinking motion.
+- Model picker: searchable, grouped by provider, only providers Hermes has credentials for
+  (`/api/model/options?include_unconfigured=false`), "Profile default" first (chat "…" menu and bot settings).
+- Persona: bot settings loads and saves SOUL.md through hermes-bridge `GET/PUT /v1/profiles/<p>/soul`.
+  **Needs the bridge redeployed** (the vendored copy in nixos-config is already updated); until then
+  the field shows "Update hermes-bridge…".
+- Chat persistence checked against hermes-agent source: `/v1/runs` with `session_id` loads that
+  session's history and writes the turn into the same SessionDB session (rotation-safe via
+  `resolve_resume_session_id`), so replies show in Hermes's own session list and reload on reopen.
+
 ## Needs a device (S25)
 - The emulator smoke test (x86_64 build of the same v0.9.1 JS, Android 15) passed: install/launch,
   setup screen, demo mode, deep links, chat, the "…" menu, search (counter/prev-next/highlight),

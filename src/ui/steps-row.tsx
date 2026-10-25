@@ -3,14 +3,13 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { Step } from "../chat-model";
-import { TypingDots } from "./kit";
 import { summary } from "./steps-row-summary";
 import { colors, font, type } from "./theme";
 
 const mark = { running: "◌", completed: "✓", failed: "✕" } as const;
 const tint = { running: colors.muted, completed: colors.success, failed: colors.danger } as const;
 
-export function StepsRow({ steps, running }: { steps: Step[]; running: boolean }) {
+export function StepsRow({ steps }: { steps: Step[] }) {
   const [open, setOpen] = useState(false);
   const failed = steps.some((s) => s.status === "failed");
   return (
@@ -18,7 +17,6 @@ export function StepsRow({ steps, running }: { steps: Step[]; running: boolean }
       <Pressable onPress={() => setOpen((o) => !o)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <Text style={[type.label, failed && { color: colors.danger }]}>{summary(steps)}</Text>
         <Text style={[type.label, { color: colors.dim }]}>{open ? "▾" : "▸"}</Text>
-        {running ? <TypingDots /> : null}
       </Pressable>
       {open ? <View style={{ gap: 4, paddingLeft: 2 }}>{steps.map((s) => <StepLine key={s.id} step={s} />)}</View> : null}
     </View>

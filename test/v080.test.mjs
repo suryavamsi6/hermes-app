@@ -25,9 +25,14 @@ test("rows are newest-first with one divider per day, none for undated history",
     { id: "a1", role: "assistant", text: "hello", steps: [], status: "completed", at: at(2026, 9, 13, 10) },
     { id: "u2", role: "user", text: "today", at: at(2026, 9, 25, 9) },
     { id: "a2", role: "assistant", text: "yes", steps: [], status: "completed", at: at(2026, 9, 25, 9) },
+    { id: "a3", role: "assistant", text: "and", steps: [], status: "completed", at: new Date(2026, 9, 25, 9, 4).getTime() },
+    { id: "u4", role: "user", text: "later", at: new Date(2026, 9, 25, 9, 12).getTime() },
+    { id: "u5", role: "user", text: "much later", at: new Date(2026, 9, 25, 12, 30).getTime() },
   ];
-  const rows = m.buildRows(turns, NOW).map((r) => (r.kind === "day" ? `[${r.label}]` : r.turn.id));
-  assert.deepStrictEqual(rows, ["a2", "u2", "[Today]", "a1", "u1", "[Oct 13]", "u0"]);
+  const rows = m.buildRows(turns, NOW).map((r) => (r.kind === "day" ? `[${r.label}]` : r.time ? `${r.turn.id}@${r.time}` : r.turn.id));
+  // New day or a 15+ minute gap -> "Today 12:30 PM" style divider; a burst ends with its last time.
+  assert.deepStrictEqual(rows, ["u5", "[Today 12:30 PM]", "u4@9:12 AM", "a3@9:04 AM", "a2", "u2", "[Today 9:00 AM]",
+    "a1", "[Oct 13, 10:00 AM]", "u1", "[Oct 13, 9:00 AM]", "u0"]);
 });
 
 test("routines never show [object Object]: schedule objects, object prompts, nested results", () => {
@@ -82,4 +87,25 @@ test("a lost reply is recovered from history; retry reuses the key only after a 
   assert.strictEqual(m.retryReusesKey({ status: "failed", errorCode: "connection_lost" }), true);
   assert.strictEqual(m.retryReusesKey({ status: "failed", errorCode: "interrupted" }), false);
   assert.strictEqual(m.retryReusesKey({ status: "cancelled" }), false);
+});
+
+test("live activity line: running tool, thinking summary, approval, fallback; none once text shows", () => {
+  const base = { id: "a", role: "assistant", text: "", steps: [], status: "streaming" };
+  assert.strictEqual(m.activityLine(base), "Thinking");
+  assert.strictEqual(m.activityLine({ ...base, thought: "Checking GitHub for updates. Then summarise." }), "Checking GitHub for updates");
+  assert.strictEqual(m.activityLine({ ...base, steps: [{ id: "0", tool: "terminal", status: "running", preview: "git status" }] }), "Running git status");
+  assert.strictEqual(m.activityLine({ ...base, steps: [{ id: "0", tool: "read_file", status: "running", preview: "/srv/app/main.py" }] }), "Reading main.py");
+  assert.strictEqual(m.activityLine({ ...base, steps: [{ id: "0", tool: "web_search", status: "completed" }] }), "Putting it together");
+  assert.strictEqual(m.toolPhrase("mcp_github_list_issues"), "Using github");
+  assert.strictEqual(m.activityLine({ ...base, approval: { requestId: "r", generation: 0, title: "x" } }), "Waiting for your OK");
+  assert.strictEqual(m.activityLine({ ...base, text: "Hi" }), null);
+  assert.strictEqual(m.activityLine({ ...base, status: "completed" }), null);
+});
+
+test("model picker: search filters by id or provider, groups keep provider order", () => {
+  const ms = [{ id: "gpt-5.2", provider: "openai", providerName: "OpenAI", label: "" }, { id: "claude-sonnet-5", provider: "anthropic", providerName: "Anthropic", label: "" },
+    { id: "gpt-5.2-mini", provider: "openai", providerName: "OpenAI", label: "" }];
+  assert.deepStrictEqual(m.groupModels(ms).map((g) => [g.title, g.models.length]), [["OpenAI", 2], ["Anthropic", 1]]);
+  assert.deepStrictEqual(m.groupModels(ms, "mini").flatMap((g) => g.models.map((x) => x.id)), ["gpt-5.2-mini"]);
+  assert.deepStrictEqual(m.groupModels(ms, "anthropic").map((g) => g.title), ["Anthropic"]);
 });

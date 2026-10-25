@@ -62,6 +62,9 @@ export class BridgeClient {
   createProfile(b: { name: string; description?: string; soul?: string; model?: string; provider?: string }) {
     return this.req<{ profile: { id: string }; api_key: string }>("POST", "/v1/profiles", b);
   }
+  /** The profile's SOUL.md (bridge 0.3+: GET/PUT /v1/profiles/<p>/soul). */
+  soul(profile: string) { return this.req<{ content: string; exists: boolean }>("GET", this.p(profile, "/soul")); }
+  setSoul(profile: string, content: string) { return this.req("PUT", this.p(profile, "/soul"), { content }); }
   rotateKey(profile: string) { return this.req<{ api_key: string }>("POST", this.p(profile, "/key"), {}); }
   restartGateway() { return this.req("POST", "/v1/gateway/restart", {}); }
 

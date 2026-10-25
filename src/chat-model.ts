@@ -8,6 +8,8 @@ export type AssistantTurn = {
   runId?: string; approval?: Approval; error?: string; errorCode?: string;
   /** ms since epoch, for date dividers and the long-press time. */
   at?: number;
+  /** Hermes's latest thinking summary (reasoning.available), shown as the live status line. */
+  thought?: string;
   /** The connection dropped and the app is re-attaching to the run (shown calmly, not as an error). */
   reconnecting?: boolean;
   /** Idempotency-Key of the run this turn started; a Retry after a lost connection reuses it, so
@@ -35,6 +37,7 @@ export type TurnAction =
   | { type: "tool"; phase: "started" | "completed" | "failed"; tool: string; preview?: string }
   | { type: "approval"; approval: Approval }
   | { type: "run"; runId: string }
+  | { type: "thought"; text: string }
   | { type: "reconnecting" } | { type: "reconnected" }
   | { type: "done"; status: Exclude<TurnStatus, "streaming">; error?: string; code?: string; pendingSteer?: string };
 
@@ -46,6 +49,8 @@ export function reduce(t: AssistantTurn, a: TurnAction): AssistantTurn {
       return { ...t, text: t.text + a.text };
     case "final":
       return a.text ? { ...t, text: a.text } : t;
+    case "thought":
+      return a.text.trim() ? { ...t, thought: a.text.trim() } : t;
     case "run":
       return t.runId ? t : { ...t, runId: a.runId };
     case "reconnecting":
@@ -85,6 +90,7 @@ export function toAction(event: string, raw: string): TurnAction[] {
   const runId = s("run_id", "runId");
   if (runId) out.push({ type: "run", runId });
   if (event === "assistant.delta" || event === "message.delta") out.push({ type: "delta", text: s("delta", "text", "content") ?? (typeof d === "string" ? d : "") });
+  else if (event === "reasoning.available") out.push({ type: "thought", text: s("text", "content") ?? "" });
   else if (event === "assistant.completed") out.push({ type: "final", text: s("content") ?? "" });
   else if (/^tool\.(started|completed|failed)$/.test(event))
     out.push({ type: "tool", phase: event === "tool.completed" && d?.error === true ? "failed" : event.slice(5) as any,
