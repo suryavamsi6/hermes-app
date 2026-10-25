@@ -1,187 +1,260 @@
-# Hermes Mobile (v0.8.0)
+# Hermes Mobile
 
-**0.8.0:** replies survive dropped connections. The app sends each message as a Hermes run (`POST
-/v1/runs` with an `Idempotency-Key`) and follows its events, resuming with `Last-Event-ID` after a
-drop, so "Software caused connection abort" becomes a quiet "Reconnecting…". If the event buffer is
-gone, it polls the run status, then the chat history. Retry after a lost connection reuses the key, so
-Hermes never stores the message twice. Servers without `/v1/runs` use the old session stream. Also:
-- chats open at the newest message, with a jump-to-bottom button and a new-message count;
-- date dividers between days;
-- long-press menu (react, time, copy, share, quote, retry, ask again), tap-to-expand tool steps;
-- haptics, per-bot drafts, unread counts on Home, and resync on open and on return to the app;
-- routines readable whatever shape Hermes sends, and paused routines listed (they used to vanish).
+An Android app for your own [Hermes Agent](https://github.com/NousResearch/hermes-agent) (by Nous Research).
+Every Hermes profile shows up as a bot with its own face. You chat with it, watch what it's doing while
+it works, approve risky commands from your phone, and manage its routines, MCP servers, plugins,
+skills and memory, all against the Hermes you already run, on whatever host you run it.
 
-**0.7.0:** works with [hermes-bridge](https://github.com/suryavamsi6/hermes-bridge), a small management API that runs next to Hermes.
-Add the bridge key in Settings → Hermes bridge. The bridge URL defaults to `<server>/bridge`. With the key set:
-- Home lists every Hermes profile on the server automatically.
-- Add bot creates a real profile and keeps its new chat key on the phone (never shown).
-- Profiles the phone has no key for get a "Set up chat" button, which sets a new key for that profile.
-- The MCP, Plugins (with each plugin's tools), Routines (run, pause, resume), Memory (provider and file sizes)
-  and Skills screens work live, including toggles.
+It talks to Hermes's own API server. Nothing goes through a third-party service, and there's no account to make.
 
-Without the key, nothing changes: add profiles by hand as before.
+> Status: early, personal project, **Android only** (v0.11.1). It's used daily against a real Hermes, but
+> expect rough edges. Issues and PRs welcome.
 
-**0.6.0:** Grok-style Home and chat. Home shows your primary bot big at the top with a star, then the other
-bots with their last message and relative time, plus a grid menu and a Search pill. Make a bot primary by
-long-pressing it on Home or with the toggle in its settings; the choice is saved per mode. In chat, user messages
-sit in light-grey bubbles, replies in dark cards with larger text, under a floating pill header. The composer
-is `+` (bot options), an "Ask <bot>" pill, and a mic with a voice button; dictation and voice are placeholders.
-The drawer is gone because Home replaces it.
+| Home | Chat | Tool steps | Approval |
+|---|---|---|---|
+| ![Home](docs/polish/after/01-home.png) | ![Chat](docs/polish/v0.11.1/03-chat-open.png) | ![Tool steps](docs/polish/v0.11.1/07-steps-expanded.png) | ![Approval](docs/polish/v0.11.1/10-approval.png) |
 
-An Expo / React Native Android app for [Hermes Agent](https://hermes-agent.nousresearch.com/) running
-on your own server, reachable from the phone through Tailscale Funnel (no domain needed) or any HTTPS
-reverse proxy. The look is dark and minimal. All code, the name and the "H" icon are original to this project.
+| Attach | Needs your OK | Routines | MCP servers |
+|---|---|---|---|
+| ![Attach](docs/polish/v0.11.1/08-attach-sheet.png) | ![Needs your OK](docs/polish/after/10b-home-needs-ok.png) | ![Routines](docs/polish/after/15-routines.png) | ![MCP](docs/polish/after/16-mcp.png) |
+
+Screenshots come from the built-in demo mode (no server). More are in [`docs/polish/`](docs/polish/).
 
 ## Features
-- **Bots:** every Hermes profile is a bot in the left drawer, with an emoji avatar, colour, description,
-  last message, an unread dot and a "typing…" status. This mirrors Hermes's own [Bot Mode](https://hermes-agent.nousresearch.com/docs/user-guide/bot-mode).
-- **One continuous chat per bot**, kept in a session titled `Bot Chat`. Older sessions live under Bot info → Older sessions.
-- **Chat:** replies stream in as markdown (tables, code with copy). There's a "N steps ›" tool activity line,
-  thinking dots with a bouncing avatar, inline Allow/Deny approval cards, Stop, long-press tapback
-  reactions, and suggestion chips when a chat is empty.
-- **New bot:** avatar (emoji and colour, or shuffle), name, description, persona, model and toolsets.
-- **Per-bot settings:** look, persona, model, toolsets, skills, plus links to memory, MCP, plugins, routines and history.
-- **MCP servers** (URL plus an optional auth header, enable/disable, remove), **Plugins** (installed and browse,
-  with each plugin's kind, tools and skills), **Routines** (all bots, with run now, pause and delete),
-  and a **Memory** editor (USER.md and MEMORY.md).
 
-## Live vs demo
-| Feature | Live (real Hermes HTTP API) | Demo |
-|---|---|---|
-| Bot Chat: stream, steps, approvals, stop | `POST /api/sessions`, `/api/sessions/{id}/chat/stream`, `/v1/runs/{id}/approval`, `/stop` | ✅ |
-| Several bots (profiles) | One listener with `gateway.multiplex_profiles: true`, at `/p/<profile>/…` with each profile's own `API_SERVER_KEY`. With the bridge, the roster is the server's profile list (`GET /v1/profiles`); without it, it's kept on the phone ("add existing profile") | ✅ |
-| Per-bot model | `model` and `provider` sent with each session-chat request; list from `GET /api/model/options` | ✅ |
-| Skills, toolsets | Read: `GET /v1/skills`, `GET /v1/toolsets`. With the bridge: read and toggle via `/v1/profiles/<p>/skills`, `/toolsets` | ✅ |
-| Routines | With the bridge: list, pause/resume and run via `/v1/profiles/<p>/jobs`. Create and delete: `POST /api/jobs`, `DELETE /api/jobs/{id}` (delivery `bot-chat`) | ✅ |
-| Older sessions | `GET /api/sessions` | ✅ |
-| Avatar, name, description, reactions, unread | Stored on the phone | ✅ |
-| Create a profile (with persona and model) | Bridge: `POST /v1/profiles`, which returns the profile's new key once | ✅ |
-| Delete a profile, edit persona later | Server only (`hermes profile delete`, edit `SOUL.md`) | ✅ |
-| Memory | Bridge: active provider, provider status and built-in file sizes. The files' text has no Hermes API | ✅ (editable) |
-| MCP servers | Bridge: list, add (URL plus optional bearer token), enable/disable, remove, and "Restart Hermes to apply" | ✅ |
-| Plugins | Bridge: installed plugins with their tools. Switching one on or off works for the bridge's own profile (`default`); other profiles show the `hermes -p <p> plugins …` command | ✅ |
-| Attachments, push notifications | Not built. The API takes inline images but no file uploads | ✗ |
+- **Bots = Hermes profiles.** Your primary bot sits large at the top of Home; the rest are listed with
+  their last message, unread count and live state ("Searching the web…", "Needs your OK", "Needs attention").
+- **Calm animated faces.** Each bot has its own shape and colour. Faces blink and breathe at their own
+  uneven rhythm, and change expression only when the app's real state does: listening while you type,
+  thinking, working while a tool runs, waiting for your approval, a small hop when a reply lands, a
+  concerned look on errors. Tap one and it reacts. Faces pause when off-screen or in the background, and
+  stay still with Android's *Remove animations* setting (or the in-app *Reduce motion* switch).
+- **Chat** with streaming markdown (tables, code blocks with copy), a live status line, and tool steps you
+  can expand to see each command and its output. It survives flaky connections: each message is a Hermes
+  run, followed by its events, and resumed after a drop ("Reconnecting…") without duplicating your message.
+- **Approvals.** When Hermes wants to run something that needs your OK, you get a card that explains it,
+  with *Deny / Edit / Allow once / Allow for this chat / Always allow*. The card only clears after Hermes
+  accepts the answer. Approvals also come as notifications with Allow/Deny buttons.
+- **Attachments.** The **+** button opens Photos, Camera or Files. Images go as inline images, text files
+  (code, CSV, JSON, Markdown…) as inline text blocks.
+- **Steer or stop** a running reply: type while it's working to add to it, or tap stop.
+- **Gateway notices** (a background job finished, a routine delivered, a reply from another bot) show as
+  small chips in the chat; tap to read them.
+- **Routines** (Hermes cron jobs): list, run now, pause, resume, delete.
+- **MCP servers**: add, enable/disable, test, install from Hermes's catalog.
+- **Plugins, skills, toolsets, memory provider, persona (SOUL.md), usage**: browse and toggle.
+- **Create bots** from the phone: name, persona, model, look. With the bridge, this creates a real profile
+  with its own chat key.
+- **Voice**: dictation in the composer, read aloud, and a simple voice-call screen.
+- **Quiet hours, notification privacy** ("New reply" only), and an optional **fingerprint / screen-lock**
+  app lock.
+- **Search in chat, export a chat as Markdown, older sessions, reactions, quote-reply, edit and resend.**
+- **Demo mode** with three made-up bots, so you can try everything without a server.
 
-Bridge features without a bridge key show "Needs hermes-bridge". The bridge has its own key: the app never
-sends the Hermes key to the bridge, and never sends the bridge key to Hermes (tested in `test/bridge.test.mjs`
-against the real bridge package).
+## What you need
 
-## Layout
-| Path | Purpose |
-|---|---|
-| `app/bot/[botId].tsx` | Bot Chat screen |
-| `app/bot-info/[botId].tsx` | Per-bot settings hub |
-| `app/new-bot.tsx` | Create a bot (live: add an existing profile) |
-| `app/mcp/[botId].tsx`, `app/plugins/[botId].tsx`, `app/memory/[botId].tsx`, `app/history/[botId].tsx` | Per-bot feature screens |
-| `app/routines.tsx` | Routines for all bots |
-| `app/settings.tsx` | Connection, plus "Try demo" |
-| `src/backend.ts` | `Backend` interface and types, `ComingSoonError`, the list of bridge-only features |
-| `src/live-backend.ts` | Live mode: Hermes HTTP API only |
-| `src/demo-backend.ts`, `src/mock-hermes.ts` | Offline demo: three seeded bots (Hermes, Pi Ops, Market) |
-| `src/app-state.tsx` | Roster, per-bot chats, unread, previews, reactions |
-| `src/hermes.ts` | HTTP client (bearer key, optional CF Access headers, `/p/<profile>` prefix, SSE streaming) |
-| `src/chat-model.ts`, `src/sse.ts` | Stream reducer and SSE parser |
-| `src/ui/*` | Theme, kit (avatar, typing dots, rows, toggles, coming-soon), drawer, composer, markdown, steps, approvals, reactions |
-| `test/*.mjs` | `npm test`: SSE parser, reducer, demo backend |
-| `homelab/` | Hermes `.env` example |
+1. **Hermes Agent** with its **API server** turned on, reachable from your phone over **HTTPS**.
+   Any host works: bare metal, Docker, an Incus/LXC container, a VPS, a Raspberry Pi.
+2. **An Android phone** (Android 7+; the APK is arm64, which is nearly every phone from the last 6+ years).
+3. *Optional:* **[hermes-bridge](https://github.com/suryavamsi6/hermes-bridge)**, a small management API
+   that runs next to Hermes. Chat works without it. With it you also get the profile list, creating bots
+   with keys, and live MCP / plugins / skills / routines / memory screens.
 
-## Demo mode (no connection)
-There are two ways to turn it on:
-- **Build flag:** set `EXPO_PUBLIC_DEMO=1` when you build. The app opens straight into the demo.
-- **In the app:** tap **Try demo (no connection)** on the Connect screen.
+## 1. Turn on the Hermes API server
 
-Demo mode makes no network calls. Things to try:
-- In **Pi Ops**, say "delete old logs" to get an approval card.
-- Create a bot.
-- Add an MCP server.
-- Install a plugin.
-- Add a routine.
-- Edit memory.
-- Long-press a message to react.
+On the machine (or in the container) that runs Hermes, add this to `~/.hermes/.env`
+(see [`homelab/hermes.env.example`](homelab/hermes.env.example)):
 
-## Server setup
-1. **Enable the Hermes API server** on your server. Append `homelab/hermes.env.example` to `~/.hermes/.env`
-   with a real key (`openssl rand -hex 32`), then restart `hermes gateway`. Check it with
-   `curl -H "Authorization: Bearer $KEY" http://127.0.0.1:8642/v1/capabilities`.
-   For more bots, set `gateway.multiplex_profiles: true` and give each profile its own `API_SERVER_KEY`.
-   If you manage the server declaratively (NixOS, Ansible, …), put the same settings in that config.
-2. **Publish it with Tailscale Funnel.** Enable MagicDNS, HTTPS certificates and the `funnel` node
-   attribute in the tailnet admin console, then run
-   `sudo tailscale funnel --bg --https=443 http://<hermes-ip>:8642` on the server.
-   Funnel is public, so the Hermes key is the lock. Test it with
-   `curl -H "Authorization: Bearer $KEY" https://<your-host>.ts.net/v1/capabilities`
-   (401 without the key, 200 with it).
-3. In the app's Connect screen, enter `https://<your-host>.ts.net` and the Hermes key. Leave
-   **Cloudflare Access (optional)** empty. It is only for a server behind Cloudflare Access, and its
-   headers are sent only when both the client ID and the secret are filled in.
-4. **Other profiles (e.g. work, finance).** Hermes's API has no endpoint that lists profiles, so add each
-   one in the app: drawer → New bot → "Your Hermes profile", with its lowercase name and that profile's own
-   `API_SERVER_KEY` (`~/.hermes/profiles/<name>/.env`). The main key is rejected under `/p/<name>/`.
-   The app checks the name (404 = not served) and the key (401 = wrong key) before adding it.
-
-## Build
+```bash
+API_SERVER_ENABLED=true
+API_SERVER_HOST=127.0.0.1     # 0.0.0.0 if Hermes is in a container and the proxy runs on the host
+API_SERVER_PORT=8642
+API_SERVER_KEY=YOUR_KEY       # generate one: openssl rand -hex 32
 ```
+
+Restart the Hermes gateway (however you run it: `hermes gateway`, a systemd service, or the container), then check it:
+
+```bash
+curl -H "Authorization: Bearer YOUR_KEY" http://127.0.0.1:8642/v1/capabilities   # 200 with the key, 401 without
+```
+
+**More than one bot.** To serve several profiles from one listener, add to `~/.hermes/config.yaml`:
+
+```yaml
+gateway:
+  multiplex_profiles: true
+```
+
+Each profile is then served at `/p/<profile>/…` and needs **its own** `API_SERVER_KEY` in
+`~/.hermes/profiles/<profile>/.env` (the default key is rejected there). With hermes-bridge, the app
+creates and stores these keys for you.
+
+**Docker.** Publish the API port only to the host (`-p 127.0.0.1:8642:8642`) and put the HTTPS proxy in
+front of it. Don't publish it on `0.0.0.0` without TLS.
+
+## 2. Reach it from your phone over HTTPS
+
+Pick one:
+
+- **Tailscale Funnel** (no domain or open ports needed). Enable MagicDNS, HTTPS certificates and Funnel in
+  the Tailscale admin console, then on the Hermes host:
+  ```bash
+  sudo tailscale funnel --bg --https=443 http://127.0.0.1:8642
+  # optional, for the bridge (Funnel strips the /bridge prefix):
+  sudo tailscale funnel --bg --https=443 --set-path /bridge http://127.0.0.1:8765
+  ```
+  Your URL is `https://<machine>.<tailnet>.ts.net`. Funnel is public, so the API key is the lock: keep it long and secret.
+  If you only use the app on your tailnet, `tailscale serve` (tailnet-only) works too.
+- **Reverse proxy with TLS** (Caddy, nginx, Traefik) on a domain you own. Caddy example:
+  ```caddy
+  hermes.your-host.example {
+    handle_path /bridge/* {
+      reverse_proxy 127.0.0.1:8765
+    }
+    reverse_proxy 127.0.0.1:8642
+  }
+  ```
+- **Cloudflare Tunnel / Access.** Supported: the app can send a Cloudflare Access service-token
+  (client ID + secret) with every request.
+
+Never expose the Hermes **dashboard** ports (9119/9120) to the internet. The app doesn't need them.
+
+Test from outside your network:
+
+```bash
+curl -H "Authorization: Bearer YOUR_KEY" https://your-host.example/v1/capabilities
+```
+
+## 3. Install the app
+
+- **APK (v0.11.1):** <https://expo.dev/artifacts/eas/jqGZUM5fTiQYo_B7QxbXraDF9dCKrJtqmYOWzY9601E.apk>
+  (EAS build artifact; check [Releases](https://github.com/suryavamsi6/hermes-app/releases) for newer ones).
+  Download it on the phone and allow *Install unknown apps* for your browser or file manager.
+- Or build it yourself (below).
+
+## 4. Connect
+
+Open the app → **Settings → Connection**:
+
+| Field | What to put |
+|---|---|
+| Server URL | `https://your-host.example` (no trailing slash, no `/v1`) |
+| API key | Your `API_SERVER_KEY` |
+| Hermes bridge key *(optional)* | The bridge key (see the bridge README) |
+| Bridge URL *(optional)* | Leave empty to use `<server URL>/bridge`, or set it if the bridge lives elsewhere |
+| Cloudflare Access *(optional)* | Client ID and secret, only if your server sits behind Cloudflare Access |
+
+The app checks the URL and key before saving and tells you which one is wrong (404 vs 401).
+Without the bridge, add more profiles from Home → **+** (Add a bot) → **Your Hermes profile**, using each profile's name and key.
+
+Keys are stored in Android's encrypted storage (`expo-secure-store`). The Hermes key is only sent to
+Hermes and the bridge key only to the bridge.
+
+**Notifications.** Allow notifications when asked, then set *Battery → Unrestricted* for the app
+(Settings → Notifications → *Android notification & battery settings*) so replies and approvals still
+arrive while it's in the background. There's no push server: if you swipe the app away, it can't notify.
+
+## Demo mode
+
+No server needed. Tap **Try demo (no connection)** in Settings, or build with `EXPO_PUBLIC_DEMO=1`. Try:
+"delete old logs" in *Pi Ops* (an approval), "What can you do?" in *Hermes* (tool steps), creating a bot,
+adding an MCP server or a routine.
+
+The same demo runs in a browser, which is how the screenshots are made:
+
+```bash
+EXPO_PUBLIC_DEMO=1 npx expo export --platform web --output-dir /tmp/hweb
+node dist/bench/static.mjs /tmp/hweb 8802        # then open http://localhost:8802
+```
+
+## Build it yourself
+
+Requirements: Node 20+, npm, and either an [Expo](https://expo.dev) account (cloud builds, free tier is fine)
+or JDK 17 + the Android SDK (local builds).
+
+```bash
+git clone https://github.com/suryavamsi6/hermes-app.git && cd hermes-app
 npm install --legacy-peer-deps
 npm run typecheck && npm test
-EXPO_PUBLIC_DEMO=1 npx expo prebuild -p android --clean   # omit the env var for a live build
-cd android && ./gradlew assembleRelease                   # JDK 17 + Android SDK
 ```
-The output is `android/app/build/outputs/apk/release/app-release.apk`, signed with the debug key and built
-for arm64 only (`reactNativeArchitectures=arm64-v8a`). Install it with `adb install`, or copy it to the phone.
 
-Not in this repo (see `.gitignore`): `node_modules/`, the generated `android/` and `ios/` projects (recreate them
-with `expo prebuild`), APKs and other `dist/` output, and signing material. Keep a copy of
-`android/app/debug.keystore` from the machine that builds the APK: updates install over the existing app only
-when they are signed with the same key. The Inter fonts (`assets/fonts/Inter-{Regular,Medium,SemiBold}.ttf`) and
-`assets/icon.png` are required to build.
+**Cloud build with your own EAS account.** `app.json` contains this project's EAS `owner` and
+`extra.eas.projectId`; remove both (or run `eas init`, which replaces them with yours) and change
+`android.package` if you want to install it next to the official build:
 
-## Verified vs untested
-- **Verified on the box:**
-  - `tsc --noEmit` passes.
-  - `npm test` passes: 5 tests covering the SSE parser, reducer, demo roster, create bot, routines, MCP, plugins, memory, and the approval deny flow.
-  - Expo's project checker passes.
-  - The web export drives every demo screen in headless Chrome with no page errors (screenshots in `dist/screens/`).
-  - The demo APK builds.
-- **Untested:**
-  - Nothing has been run against a real Hermes.
-  - Several response shapes aren't documented, so they're parsed defensively: sessions, messages, `/api/jobs`, `/v1/skills`,
-    `/v1/toolsets`, `/api/model/options`, the SSE event fields and the approval event name.
-  - API-server sessions are separate from Desktop/CLI-owned Bot Chats. Hermes refuses foreign
-    sessions with 409, so the phone's Bot Chat is its own `api_server` session titled `Bot Chat`.
-  - The APK hasn't been run on a device.
+```bash
+npx eas-cli login
+npx eas-cli init                      # links the project to your account
+npx eas-cli build -p android --profile production   # an APK (see eas.json)
+```
 
-## Bot faces (v0.3)
+**Local build.**
 
-Every bot avatar is an animated face (`src/ui/bot-face.tsx`, RN `Animated` with the native driver, no extra deps).
-Personality (eye shape and spacing, blink rate, mouth width) comes from the bot id (`src/ui/face-personality.ts`).
-Moods come from `moodOf(botId)` in `app-state.tsx`:
+```bash
+npx expo prebuild -p android --clean      # add EXPO_PUBLIC_DEMO=1 for a demo-only build
+cd android && ./gradlew assembleRelease   # android/app/build/outputs/apk/release/app-release.apk
+```
 
-- idle: random blinks, glances around, breathing
-- thinking: eyes up and darting, "o" mouth, bob and wobble
-- happy (~1.2 s after a reply or a reaction): ^ ^ eyes, open smile, double hop
-- approval: head tilt, one raised brow, side-eye
-- error/offline: flat sleepy eyes, "z", dimmed
+Local release builds are signed with the debug key from `android/app/debug.keystore`. Keep a copy:
+updates only install over an app signed with the same key. To build for an x86_64 emulator, pass
+`-PreactNativeArchitectures=x86_64`. A full Gradle build is heavy (many GB of RAM); EAS is easier.
 
-Reduce Motion falls back to a static face. Drawer faces pause while the drawer is closed.
+Never commit keystores, `.env` files or keys; `.gitignore` already excludes them.
 
-## Appearance (v0.4)
+## Hermes features: supported or not
 
-Bot info → Appearance, and New bot, let you pick:
+| Hermes feature | In the app |
+|---|---|
+| Chat, streaming, tool steps, stop, steer | ✅ (`/v1/runs` with resume; older servers fall back to session streaming) |
+| Approvals | ✅ cards and notification actions |
+| Several profiles (bots) | ✅ with `multiplex_profiles`; listing/creating them needs the bridge |
+| Per-bot model | ✅ |
+| Images and text files | ✅ inline; PDFs and other binaries aren't supported by the API |
+| Routines (cron) | ✅ list / run / pause / resume / delete (listing needs the bridge) |
+| MCP servers, plugins, skills, toolsets, memory provider, persona, usage | ✅ with the bridge |
+| Gateway notices (background processes, deliveries) | ✅ shown as chips |
+| Older sessions, search, export | ✅ |
+| Desktop/CLI-owned sessions | Read-only history; the phone keeps its own "Bot Chat" session per bot |
+| Push notifications when the app is closed | ❌ (no push server) |
+| Kanban, messaging-platform setup, terminal, file browser, config editing | ❌ (use Hermes's own dashboard or CLI) |
+| iOS | ❌ not built or tested |
 
-- **Shape** (8): Rounded, Circle, Squircle, Blob, Hexagon, Flower, Cloud, Ghost. These are SVG paths from `src/appearance.ts`, and the face sits on top of them with every mood intact.
-- **Colour**: 12 solids (Midnight, Grape, Forest, Teal, Ember, Plum, Ochre, Slate, Sky, Mint, Coral, Butter) and 6 gradients (Sunset, Aurora, Dusk, Honey, Lagoon, Berry). Eyes and mouth switch between light and dark ink by contrast.
-- **Face**: Auto (derived from the bot id), Round, Tall, Wide, Dots.
-- **Badge** emoji.
+## Troubleshooting
 
-Each pick makes the preview hop and saves right away. In demo mode it lives in the demo store. In live mode it's kept on the phone under `hermes.look.<profile>` in SecureStore (localStorage on web). It's purely cosmetic, so Hermes is never involved and it works fully live.
-The unlinked route `hermes://faces` shows every shape × colour × mood.
+- **"Reconnecting…" that never ends.** The phone can't reach the server. Open the server URL + `/v1/capabilities`
+  in the phone's browser. With Funnel, check `tailscale funnel status`. Behind a proxy, make sure it doesn't
+  buffer server-sent events (nginx: `proxy_buffering off;`).
+- **401 / "Wrong key".** Each profile under `/p/<name>/` needs its own `API_SERVER_KEY`; the main key won't work there.
+- **404 on a profile.** `multiplex_profiles` isn't on, or the profile name is wrong (lowercase id, not the display name).
+- **"Needs hermes-bridge".** The screen needs the optional bridge; add the bridge key in Settings.
+- **No notifications.** Allow them in Android settings, set battery to *Unrestricted*, and use
+  *Send test notification*. Notifications stop when the app is swiped away.
+- **A grey box stuck over the chat** (fixed in v0.10.4). Update the app; if you see it again, open an issue.
+- **Animations feel like too much.** Turn on *Reduce motion* in the app, or *Remove animations* in Android's
+  accessibility settings.
 
-## Performance and 120 Hz (v0.5)
+## Privacy and security
 
-- Fast-changing chat state (turns, unread, previews, reactions, moods) lives in a small selector store (`src/store.ts`) instead of React context. A streaming token re-renders the streaming row and the header mood, not the whole app.
-- Stream events are batched to at most one state update per frame.
-- Chat rows, header, drawer, drawer rows, composer, avatars, faces and Markdown blocks are memoised. While a reply streams, only the tail Markdown block re-renders.
-- Faces: each mood is one native-driver clock (`Animated.loop(timing)` runs as a native loop), and the animated node graph is rebuilt only when the mood changes.
-- Release build: Hermes, New Architecture, R8 and resource shrinking. Enforced by `plugins/with-high-refresh-rate.js`, so `expo prebuild` keeps them.
-- 120 Hz: the same plugin makes `MainActivity` request the display mode with the highest refresh rate at the current resolution (`preferredDisplayModeId` / `preferredRefreshRate`). On Samsung, set **Settings → Display → Motion smoothness → Adaptive**.
-- Bench: `dist/bench/bench.mjs` (web build, 4× CPU throttle); raw runs are in `dist/bench/web-bench-runs.jsonl`.
+- The app talks only to the URLs you enter. No analytics, no telemetry, no third-party servers.
+- Keys live in encrypted storage on the phone and are never shown again after you save them.
+- Anyone with your API key can use your Hermes, which can run commands on its host. Use a long random key,
+  HTTPS only, and rotate it if a phone is lost. Hermes's own approval settings still apply to everything
+  the app sends.
+- The bridge never forwards Hermes's terminal, file browser, secrets or config writes (see its README).
+- Optional app lock (fingerprint or screen lock) and "hide message text" in notifications.
+
+## Project layout
+
+| Path | Purpose |
+|---|---|
+| `app/` | Screens (expo-router): Home, chat (`bot/[botId]`), bot settings, routines, MCP, plugins, memory, settings |
+| `src/live-backend.ts`, `src/hermes.ts`, `src/bridge.ts` | Hermes API and bridge clients |
+| `src/demo-backend.ts`, `src/mock-hermes.ts` | Offline demo |
+| `src/app-state.tsx`, `src/chat-model.ts`, `src/sse.ts` | State, stream reducer, SSE parser |
+| `src/ui/` | Theme, faces (`bot-face.tsx`, `face-state.ts`), motion tokens, composer, markdown, sheets |
+| `test/` | `npm test` (node:test); the bridge tests run against a hermes-bridge checkout next to this repo |
+| `docs/polish/` | Screenshot script and screenshots |
+
+## License
+
+See [LICENSE](LICENSE). Not affiliated with Nous Research; "Hermes Agent" is their project.

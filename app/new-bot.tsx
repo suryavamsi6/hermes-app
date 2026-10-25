@@ -55,7 +55,7 @@ export default function NewBotScreen() {
         <AppearancePicker look={b} onPick={look} />
       </View>
       {!canCreate ? (
-        <Section title="Your Hermes profile" footer={"Hermes has no endpoint that lists profiles, so add each one by name. Its key is the API_SERVER_KEY in ~/.hermes/profiles/<name>/.env on the homelab; the main key isn't accepted for other profiles."}>
+        <Section title="Your Hermes profile" footer={"Hermes has no endpoint that lists profiles, so add each one by name. Its key is the API_SERVER_KEY in ~/.hermes/profiles/<name>/.env on your Hermes server; the main key isn't accepted for other profiles."}>
           <View style={{ padding: 12, gap: 12 }}>
             <Field label="Profile name" placeholder="jobwing" autoCapitalize="none" value={profile} onChangeText={setProfile} />
             <Field label="That profile's API_SERVER_KEY" secureTextEntry autoCapitalize="none" value={key} onChangeText={setKey} />
