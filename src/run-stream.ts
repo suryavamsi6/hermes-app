@@ -80,12 +80,19 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
     outer.signal.addEventListener("abort", done);
   });
 
+  // Nothing is reported after the turn's terminal action (a resume-time status check can finish the
+  // turn while a stream is still winding down).
+  let ended = false;
+  const emit = (a: TurnAction) => { if (ended) return; if (a.type === "done") ended = true; o.onAction(a); };
+  let currentRun: string | undefined;
+  let nudging = false;
+
   // "Reconnecting" is debounced: trouble must persist reconnectDelayMs (and the app must be in the
   // foreground) before the turn shows it; recovering earlier shows nothing at all.
   const reconnectDelayMs = o.reconnectDelayMs ?? 3000;
   let shown = false, troubled = false, background = false;
   let showTimer: ReturnType<typeof setTimeout> | undefined;
-  const show = () => { showTimer = undefined; if (troubled && !background && !shown && !outer.signal.aborted) { shown = true; o.onAction({ type: "reconnecting" }); } };
+  const show = () => { showTimer = undefined; if (troubled && !background && !shown && !outer.signal.aborted) { shown = true; emit({ type: "reconnecting" }); } };
   const setReconnecting = (on: boolean) => {
     if (on) {
       if (troubled) return;
@@ -95,7 +102,7 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
     }
     troubled = false;
     clearTimeout(showTimer); showTimer = undefined;
-    if (shown) { shown = false; o.onAction({ type: "reconnected" }); }
+    if (shown) { shown = false; emit({ type: "reconnected" }); }
   };
 
   async function admit(): Promise<string> {
@@ -165,7 +172,7 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
             const name = typeof d?.event === "string" ? d.event : ev.event;
             if (name === "run.queued") continue; // waiting in the session's queue; the run continues
             for (const a of toAction(name, ev.data)) {
-              o.onAction(a);
+              emit(a);
               if (a.type === "done") return true;
             }
           }
@@ -178,6 +185,11 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
         if (outer.signal.aborted) return true;
         if (e instanceof HermesError) throw e;
         if (gotEvent) failures = 0;
+        // Dropped on purpose by nudge() (a socket that died while the phone slept): reconnect now,
+        // it isn't a network failure.
+        if (nudging) { nudging = false; continue; }
+        // In the background Android blocks the network; waiting there mustn't use up the retry budget.
+        if (background) { setReconnecting(true); await sleep(backoff[Math.min(failures, backoff.length - 1)]); continue; }
         if (failures >= backoff.length) return false;
         setReconnecting(true);
         await sleep(backoff[failures++]);
@@ -199,7 +211,7 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
         const res = await t.fetch(t.url(`/v1/runs/${encodeURIComponent(runId)}`), { signal: outer.signal, headers: t.headers() });
         const text = await res.text();
         if (res.status === 404) {
-          o.onAction({ type: "done", status: "failed", code: "run_unknown", error: "Hermes no longer knows this run" });
+          emit({ type: "done", status: "failed", code: "run_unknown", error: "Hermes no longer knows this run" });
           return;
         }
         if (transientStatus(res.status)) throw new Retryable(`HTTP ${res.status}`);
@@ -214,20 +226,21 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
         }
         if (TERMINAL.has(status)) {
           if (status === "completed") {
-            if (typeof st.output === "string" && st.output) o.onAction({ type: "final", text: st.output });
-            o.onAction({ type: "done", status: "completed" });
-          } else if (status === "cancelled") o.onAction({ type: "done", status: "cancelled" });
-          else o.onAction({ type: "done", status: "failed", error: typeof st.error === "string" ? st.error : `the run ${status}`, code: status === "interrupted" ? "interrupted" : undefined });
+            if (typeof st.output === "string" && st.output) emit({ type: "final", text: st.output });
+            emit({ type: "done", status: "completed" });
+          } else if (status === "cancelled") emit({ type: "done", status: "cancelled" });
+          else emit({ type: "done", status: "failed", error: typeof st.error === "string" ? st.error : `the run ${status}`, code: status === "interrupted" ? "interrupted" : undefined });
           return;
         }
         if (Date.now() - started > pollMaxMs) {
-          o.onAction({ type: "done", status: "failed", code: "connection_lost", error: "Hermes is still working on this; check back later" });
+          emit({ type: "done", status: "failed", code: "connection_lost", error: "Hermes is still working on this; check back later" });
           return;
         }
         await sleep(pollMs);
       } catch (e) {
         if (outer.signal.aborted) return;
         if (e instanceof HermesError) throw e;
+        if (background) { setReconnecting(true); await sleep(backoff[Math.min(failures, backoff.length - 1)]); continue; }
         if (failures >= backoff.length) throw e;
         setReconnecting(true);
         await sleep(backoff[failures++]);
@@ -235,31 +248,58 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
     }
   }
 
+  /** Back in the foreground: one quick status check, independent of the (possibly slow) stream.
+   *  Reaching Hermes clears any connection trouble; a run that finished while away ends right here. */
+  async function probe(runId: string) {
+    const ctl = new AbortController();
+    const onOuter = () => ctl.abort();
+    outer.signal.addEventListener("abort", onOuter);
+    const timer = setTimeout(() => ctl.abort(), 8000);
+    try {
+      const res = await t.fetch(t.url(`/v1/runs/${encodeURIComponent(runId)}`), { signal: ctl.signal, headers: t.headers() });
+      if (!res.ok) return;
+      const st = JSON.parse(await res.text());
+      if (outer.signal.aborted || ended) return;
+      setReconnecting(false);
+      const status = String(st?.status ?? "");
+      if (status === "completed" && typeof st.output === "string" && st.output) {
+        emit({ type: "final", text: st.output }); emit({ type: "done", status: "completed" }); outer.abort(); wake?.();
+      } else if (status === "cancelled") { emit({ type: "done", status: "cancelled" }); outer.abort(); wake?.(); }
+      else if (status === "failed" || status === "interrupted") {
+        emit({ type: "done", status: "failed", error: typeof st.error === "string" ? st.error : `the run ${status}`, code: status === "interrupted" ? "interrupted" : undefined });
+        outer.abort(); wake?.();
+      }
+    } catch {} finally { clearTimeout(timer); outer.signal.removeEventListener("abort", onOuter); }
+  }
+
   (async () => {
     const runId = await admit();
     if (outer.signal.aborted) return;
-    o.onAction({ type: "run", runId });
+    currentRun = runId;
+    emit({ type: "run", runId });
     if (await follow(runId)) return;
     if (outer.signal.aborted) return;
     await poll(runId);
   })().catch((e) => {
     if (outer.signal.aborted) return;
     if (e instanceof NoRunsApi) return o.onNoRunsApi();
-    if (e instanceof HermesError) return o.onAction({ type: "done", status: "failed", error: e.detail, code: e.code ?? String(e.status) });
-    o.onAction({ type: "done", status: "failed", code: "connection_lost", error: `Couldn't reach Hermes (${e?.message ?? e})` });
+    if (e instanceof HermesError) return emit({ type: "done", status: "failed", error: e.detail, code: e.code ?? String(e.status) });
+    emit({ type: "done", status: "failed", code: "connection_lost", error: `Couldn't reach Hermes (${e?.message ?? e})` });
   });
 
-  const abort = (() => { clearTimeout(showTimer); outer.abort(); wake?.(); }) as RunHandle;
+  const abort = (() => { clearTimeout(showTimer); ended = true; outer.abort(); wake?.(); }) as RunHandle;
   abort.quiet = (on: boolean) => {
     background = on;
-    if (on) { clearTimeout(showTimer); showTimer = undefined; if (shown) { shown = false; o.onAction({ type: "reconnected" }); } }
+    if (on) { clearTimeout(showTimer); showTimer = undefined; if (shown) { shown = false; emit({ type: "reconnected" }); } }
     else if (troubled && !shown && !showTimer) showTimer = setTimeout(show, reconnectDelayMs);
   };
   /** App came back to the foreground: skip any backoff wait, and drop a stream that has gone quiet
    *  (Hermes sends a keepalive every 10 s, so 12 s of silence means the socket died while asleep). */
   abort.nudge = () => {
-    if (inner && Date.now() - lastByte > 12000) inner.abort();
+    if (outer.signal.aborted || ended) return;
+    if (inner && Date.now() - lastByte > 12000) { nudging = true; inner.abort(); }
     wake?.();
+    if (currentRun) void probe(currentRun);
   };
   return abort;
 }

@@ -6,6 +6,7 @@ import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/app-state";
 import { clearBotNotifications, ensureNotifications, onNotificationTap } from "../src/notify";
+import { registerReplyCheck } from "../src/background-check";
 import { colors } from "../src/ui/theme";
 import { loadPrefs } from "../src/prefs";
 import { AppLock } from "../src/ui/app-lock";
@@ -18,7 +19,7 @@ void loadPrefs();
 function NotificationTaps() {
   const { bots, approve } = useApp();
   // Channel + Android 13 permission at launch, while in the foreground (the only time Android can ask).
-  useEffect(() => { void ensureNotifications(true); }, []);
+  useEffect(() => { void ensureNotifications(true).then(() => registerReplyCheck()); }, []);
   useEffect(() => onNotificationTap((t, dismiss) => {
     const bot = bots.find((b) => b.id === t.botId);
     if (!bot) return;

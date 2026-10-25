@@ -5,6 +5,7 @@ import * as Linking from "expo-linking";
 import { Fragment, memo, useMemo, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { parse, type Block, type Inline } from "../md";
+import { clipLong, safeHref, tidyText } from "../text-safety";
 import { colors, font, radii, type } from "./theme";
 
 type Ctx = { highlight?: string };
@@ -34,7 +35,11 @@ function runs(nodes: Inline[], key: string, ctx: Ctx): ReactNode[] {
       case "b": return <Text key={k} style={{ fontFamily: font.semibold }}>{runs(n.c, k, ctx)}</Text>;
       case "i": return <Text key={k} style={{ fontStyle: "italic" }}>{runs(n.c, k, ctx)}</Text>;
       case "s": return <Text key={k} style={{ textDecorationLine: "line-through", color: colors.muted }}>{runs(n.c, k, ctx)}</Text>;
-      case "link": return <Text key={k} style={{ color: colors.accentText, textDecorationLine: "underline" }} onPress={() => void Linking.openURL(n.href)}>{runs(n.c, k, ctx)}</Text>;
+      case "link": {
+        const href = safeHref(n.href);
+        if (!href) return <Text key={k}>{runs(n.c, k, ctx)}</Text>; // unsafe scheme: plain text, not tappable
+        return <Text key={k} style={{ color: colors.accentText, textDecorationLine: "underline" }} onPress={() => void Linking.openURL(href).catch(() => {})}>{runs(n.c, k, ctx)}</Text>;
+      }
     }
   });
 }
@@ -49,7 +54,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
           <Text style={[type.label, { color: copied ? colors.success : colors.muted }]}>{copied ? "Copied" : "Copy"}</Text>
         </Pressable>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12, paddingTop: 6 }}>
+      <ScrollView horizontal nestedScrollEnabled removeClippedSubviews={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12, paddingTop: 6 }}>
         <Text selectable style={{ fontFamily: font.mono, fontSize: 13, lineHeight: 19, color: colors.text }}>{code}</Text>
       </ScrollView>
     </View>
@@ -86,7 +91,7 @@ function render(b: Block, key: string, ctx: Ctx): ReactNode {
         </View>
       );
       return (
-        <ScrollView key={key} horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView key={key} horizontal nestedScrollEnabled removeClippedSubviews={false} showsHorizontalScrollIndicator={false}>
           <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radii.inset, overflow: "hidden" }}>
             <View style={{ flexDirection: "row", backgroundColor: colors.control }}>{b.head.map((c, j) => cell(c, j, true, `${key}.h${j}`))}</View>
             {b.rows.map((r, i) => (
@@ -102,9 +107,21 @@ function render(b: Block, key: string, ctx: Ctx): ReactNode {
 }
 
 export const Markdown = memo(function Markdown({ text, highlight }: { text: string; highlight?: string }) {
-  const tree = useMemo(() => parse(text), [text]);
+  const [all, setAll] = useState(false);
+  const tidy = useMemo(() => tidyText(text), [text]);
+  const shown = useMemo(() => (all || highlight ? { text: tidy, clipped: false } : clipLong(tidy)), [tidy, all, highlight]);
+  const tree = useMemo(() => parse(shown.text), [shown.text]);
   const ctx = { highlight };
-  return <View style={{ gap: 10 }}>{tree.map((b, i) => render(b, String(i), ctx))}</View>;
+  return (
+    <View style={{ gap: 10 }}>
+      {tree.map((b, i) => render(b, String(i), ctx))}
+      {shown.clipped ? (
+        <Pressable onPress={() => setAll(true)} accessibilityRole="button" hitSlop={8}>
+          <Text style={[type.label, { color: colors.accentText }]}>Show the rest ({Math.round((tidy.length - shown.text.length) / 1000)}k more characters)</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
 });
 
 /** Plain text with search matches marked (user bubbles; replies use Markdown's own highlight). */

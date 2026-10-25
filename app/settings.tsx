@@ -58,6 +58,8 @@ export default function Settings() {
     const c = normalized(); setF(c);
     if (!c.baseUrl || !c.apiKey) { setStatus({ ok: false, text: "Fill in the server URL and the Hermes API key." }); setBusy(false); return; }
     if (!/^https:\/\//i.test(c.baseUrl)) { setStatus({ ok: false, text: "Use an https:// address (your Cloudflare hostname)." }); setBusy(false); return; }
+    // The bridge key travels with every bridge call: never over plain http.
+    if (c.bridgeUrl?.trim() && !/^https:\/\//i.test(c.bridgeUrl.trim())) { setStatus({ ok: false, text: "The bridge URL must be https:// too." }); setBusy(false); return; }
     try {
       await new HermesClient(c).capabilities(); // authenticated: proves CF Access + Hermes key
       await save(c);

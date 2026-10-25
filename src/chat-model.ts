@@ -124,7 +124,7 @@ export function parseMessages(r: any): HistoryMessage[] {
       const text = typeof m.content === "string" ? m.content : parts.map((p) => p?.text ?? "").join("");
       return { role: m.role, text, at: toMs(m.timestamp ?? m.created_at), ...(images ? { images } : {}) };
     })
-    .filter((m) => m.text || m.images);
+    .filter((m) => m.text.trim() || m.images); // whitespace-only rows would render as empty bubbles
 }
 /** Hermes stores message timestamps as unix seconds (float); accept ms or ISO too. */
 function toMs(v: unknown): number | undefined {

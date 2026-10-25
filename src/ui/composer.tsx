@@ -78,7 +78,7 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 6, paddingBottom: 2 }}>
               {images.map((a, i) => (
                 <View key={a.uri + i}>
-                  <Image source={{ uri: a.uri }} style={{ width: 56, height: 56, borderRadius: radii.inset, backgroundColor: colors.control }} />
+                  <Image source={{ uri: a.uri }} resizeMethod="resize" style={{ width: 56, height: 56, borderRadius: radii.inset, backgroundColor: colors.control }} />
                   <Pressable accessibilityLabel="Remove photo" hitSlop={6} onPress={() => setAttachments(botId, (x) => x.filter((_, k) => k !== i))}
                     style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: colors.controlActive, alignItems: "center", justifyContent: "center" }}>
                     <X size={12} color={colors.text} />

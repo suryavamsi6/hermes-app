@@ -52,6 +52,7 @@ class FakeHermes {
       this.eventRequests.push(last);
       if (run.swept) return this.json(404, { error: { message: "Run not found", code: "run_not_found" } });
       if (this.eventsDown > 0) { this.eventsDown--; throw new TypeError("Network request failed"); }
+      if (this.headerDelay) await new Promise((r) => setTimeout(r, this.headerDelay)); // slow first byte through a proxy
       let ctl; let sent = 0;
       const stallAfter = this.stallAfter; this.stallAfter = undefined; // only this connection goes half-open
       const sub = {
@@ -207,4 +208,38 @@ test("a short drop never shows Reconnecting (debounced), and nothing shows while
   const bg = await send(new FakeHermes({ dropAfter: 2 }), { reconnectDelayMs: 0, onHandle: (h) => { handle = h; h.quiet(true); } });
   assert.ok(handle && !bg.actions.some((a) => a.type === "reconnecting"));
   assert.deepStrictEqual(done(bg.actions).map((a) => a.status), ["completed"]);
+});
+
+test("v0.10.2: home screen and back never shows Reconnecting when Hermes is reachable", async () => {
+  // Fake AppState: the app goes to the background mid-reply, Android cuts the socket and blocks the
+  // network for a few retries, then the app comes back. The events stream is slow to answer (a proxy
+  // holding headers until the next keepalive), longer than the Reconnecting threshold.
+  const hermes = new FakeHermes({ tickMs: 40, dropAfter: 1 });
+  let handle;
+  const p = send(hermes, { backoff: Array(40).fill(10), reconnectDelayMs: 60, onHandle: (h) => { handle = h; } });
+  await new Promise((r) => setTimeout(r, 30));
+  handle.quiet(true);                       // AppState -> background
+  hermes.eventsDown = 20;                   // network blocked while in the background
+  await new Promise((r) => setTimeout(r, 120));
+  hermes.eventsDown = 0; hermes.headerDelay = 150;
+  handle.quiet(false); handle.nudge();      // AppState -> active
+  const { actions } = await p;
+  assert.strictEqual(textOf(actions), "Hello there");
+  assert.deepStrictEqual(done(actions).map((a) => a.status), ["completed"]);
+  assert.ok(!actions.some((a) => a.type === "reconnecting"), "showed Reconnecting after returning to the app");
+});
+
+test("v0.10.2: a run that finished while the app was away completes straight from its status on return", async () => {
+  const hermes = new FakeHermes({ tickMs: 5, stallAfter: 1 });
+  let handle;
+  const p = send(hermes, { stallMs: 100000, reconnectDelayMs: 30, onHandle: (h) => { handle = h; } });
+  await new Promise((r) => setTimeout(r, 15)); handle.quiet(true);
+  await new Promise((r) => setTimeout(r, 80)); // the run completes on the server meanwhile
+  hermes.headerDelay = 500;                    // the events stream would be slow; status is quick
+  const started = Date.now();
+  handle.quiet(false); handle.nudge();
+  const { actions } = await p;
+  assert.strictEqual(textOf(actions), "Hello there");
+  assert.ok(Date.now() - started < 400, "waited on the slow stream instead of the run status");
+  assert.ok(!actions.some((a) => a.type === "reconnecting"));
 });

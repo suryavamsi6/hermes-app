@@ -6,7 +6,7 @@
 // edit; swipe a bubble left to quote it. The "…" menu holds search, the model picker and export.
 import { router, useLocalSearchParams } from "expo-router";
 import { Phone, ArrowDown, ChevronDown, ChevronLeft, ChevronUp, Cpu, Ellipsis, FileDown, Loader, RotateCcw, Search, Settings2, X } from "lucide-react-native";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Animated, FlatList, Image, KeyboardAvoidingView, type NativeScrollEvent, type NativeSyntheticEvent, PanResponder, Platform, Pressable, Share, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { restoreDraft, setDraftText, useApp, useBot, useChat, useMood, useReaction, useReconnecting } from "../../src/app-state";
@@ -55,6 +55,13 @@ function SwipeQuote({ onQuote, children }: { onQuote: () => void; children: Reac
     },
   })).current;
   return <Animated.View style={{ transform: [{ translateX: x }] }} {...responder.panHandlers}>{children}</Animated.View>;
+}
+
+/** One message that fails to render shows a short note instead of taking the whole chat down. */
+class RowBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? <Text style={[type.label, { color: colors.muted, paddingLeft: 6 }]}>This message couldn't be shown.</Text> : this.props.children; }
 }
 
 /** Memoised: while a reply streams, only the streaming row re-renders (other turns keep their identity). */
@@ -125,7 +132,7 @@ function UserRow({ t, time, reaction, longPress, unreact, quote, highlight }: { 
           style={{ maxWidth: "82%", backgroundColor: colors.userBubble, borderRadius: radii.bubble, borderTopRightRadius: 8, paddingHorizontal: 18, paddingVertical: 12 }}>
           {t.images?.length ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: t.text ? 8 : 0 }}>
-              {t.images.map((u) => <Image key={u} source={{ uri: u }} style={{ width: 120, height: 120, borderRadius: radii.inset }} />)}
+              {t.images.map((u) => <Image key={u} source={{ uri: u }} resizeMethod="resize" style={{ width: 120, height: 120, borderRadius: radii.inset }} />)}
             </View>
           ) : t.imageCount ? <Text style={[type.label, { marginBottom: t.text ? 6 : 0 }]}>📷 {t.imageCount === 1 ? "Photo" : `${t.imageCount} photos`}</Text> : null}
           {t.text ? <MarkedText text={t.text} highlight={highlight} /> : null}
@@ -187,13 +194,14 @@ const Header = memo(function Header({ bot, top, onMenu }: { bot: Bot; top: numbe
   );
 });
 
-function EmptyChat({ bot, error, onPick }: { bot: Bot; error?: string; onPick: (s: string) => void }) {
+function EmptyChat({ bot, error, onPick, onRetry }: { bot: Bot; error?: string; onPick: (s: string) => void; onRetry: () => void }) {
   const mood = useMood(bot.id);
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24 }}>
       <Avatar bot={bot} size={84} mood={mood} />
       <Text style={[type.title, { fontSize: 20 }]}>Say hi to {bot.name}</Text>
-      <Text style={[type.bodySm, { color: colors.muted, textAlign: "center" }]}>{error ? `Couldn't load the chat: ${error}` : bot.description}</Text>
+      <Text style={[type.bodySm, { color: error ? colors.danger : colors.muted, textAlign: "center" }]}>{error ? `Couldn't load the chat: ${error}` : bot.description}</Text>
+      {error ? <RetryPill onPress={onRetry} /> : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 6 }}>
         {(SUGGESTIONS[bot.id] ?? SUGGESTIONS.default).map((s) => <Chip key={s} label={s} onPress={() => onPick(s)} />)}
       </View>
@@ -299,7 +307,7 @@ export default function BotChatScreen() {
   const onLong = useCallback((t: Turn) => setMenu(t), []);
   const onRetry = useCallback((id: string) => { if (bot) void retry(bot, id); }, [bot, retry]);
   const render = useCallback(({ item }: { item: ChatRow }) => !bot ? null : item.kind === "day" ? <DayDivider label={item.label} /> : (
-    <TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} time={showTimes ? item.time : undefined} fresh={isFresh(item.turn)} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} />
+    <RowBoundary><TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} time={showTimes ? item.time : undefined} fresh={isFresh(item.turn)} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} /></RowBoundary>
   ), [bot, lastAssistant?.id, onLong, onQuote, onRetry, searching, query, showTimes]);
   const onSend = useCallback((t: string, images: Attachment[] = []) => { if (!bot) return; setEditing(null); if (awayRef.current) jump(); void send(bot, t, images); }, [bot, send, jump]);
   const onSteer = useCallback(async (t: string) => {
@@ -334,13 +342,13 @@ export default function BotChatScreen() {
             onPrev={() => goMatch(hit - 1)} onNext={() => goMatch(hit + 1)} onClose={() => { setSearching(false); setQuery(""); }} />
         ) : null}
         {bot.needsKey ? <SetupChat bot={bot} /> : turns.length === 0 ? (
-          <EmptyChat bot={bot} error={chat.error} onPick={onSend} />
+          <EmptyChat bot={bot} error={chat.error} onPick={onSend} onRetry={() => void loadChat(bot, true)} />
         ) : (
           <View style={{ flex: 1 }}>
             <FlatList ref={list} data={rows} keyExtractor={(r) => r.key} renderItem={render} inverted
               maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 120 }}
               onScroll={onScroll} scrollEventThrottle={64} keyboardShouldPersistTaps="handled"
-              removeClippedSubviews={Platform.OS === "android"} initialNumToRender={12} maxToRenderPerBatch={8} windowSize={11}
+              removeClippedSubviews={false} initialNumToRender={12} maxToRenderPerBatch={8} windowSize={11}
               contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 12, gap: 18 }} />
             {away ? <JumpButton unseen={unseen} onPress={jump} /> : null}
           </View>
