@@ -5,7 +5,7 @@
 // Date dividers between days; long-press a message for reactions, time, copy/share/quote/read aloud/
 // edit; swipe a bubble left to quote it. The "…" menu holds search, the model picker and export.
 import { router, useLocalSearchParams } from "expo-router";
-import { CircleAlert, WifiOff, Phone, ArrowDown, ChevronDown, ChevronLeft, ChevronUp, Cpu, Ellipsis, FileDown, FileText, Loader, RotateCcw, Search, Settings2, X } from "lucide-react-native";
+import { Blocks, CircleAlert, WifiOff, Phone, ArrowDown, ChevronDown, ChevronLeft, ChevronUp, Cpu, Ellipsis, FileDown, FileText, Loader, RotateCcw, Search, Settings2, X } from "lucide-react-native";
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Animated, FlatList, Image, KeyboardAvoidingView, type NativeScrollEvent, type NativeSyntheticEvent, PanResponder, Platform, Pressable, Share, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,6 +30,7 @@ import Reanimated from "react-native-reanimated";
 import { Markdown, MarkedText } from "../../src/ui/markdown";
 import { MessageMenu, quoteOf } from "../../src/ui/message-menu";
 import { ReactionBadge } from "../../src/ui/reactions";
+import { Scrim } from "../../src/ui/scrim";
 import { Sheet, SheetRow } from "../../src/ui/sheet";
 import { SetupChat } from "../../src/ui/setup-chat";
 import { StepsRow } from "../../src/ui/steps-row";
@@ -163,9 +164,9 @@ const DayDivider = memo(function DayDivider({ label }: { label: string }) {
 });
 
 /** Round "jump to the newest message" button with a count of messages that arrived while scrolled up. */
-function JumpButton({ unseen, onPress }: { unseen: number; onPress: () => void }) {
+function JumpButton({ unseen, onPress, bottom }: { unseen: number; onPress: () => void; bottom: number }) {
   return (
-    <Reanimated.View entering={enter.pop} exiting={leave.pop} style={{ position: "absolute", bottom: 12, alignSelf: "center" }}>
+    <Reanimated.View entering={enter.pop} exiting={leave.pop} style={{ position: "absolute", bottom, alignSelf: "center" }}>
     <PressScale onPress={onPress} accessibilityRole="button" accessibilityLabel={unseen ? `Jump to the latest message, ${unseen} new` : "Jump to the latest message"} to={0.9}
       style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
         backgroundColor: colors.floating, borderWidth: 1, borderColor: colors.borderStrong, elevation: 4 }}>
@@ -269,6 +270,7 @@ export default function BotChatScreen() {
   const bot = useBot(botId);
   const { loadChat, send, steer, retry, syncChat, stop, setActive, react, bots, backend, reloadBots } = useApp();
   const insets = useSafeAreaInsets();
+  const [composerH, setComposerH] = useState(76);
   const list = useRef<FlatList<ChatRow>>(null);
   const chat = useChat(bot?.id);
   const turns = chat.turns;
@@ -360,38 +362,51 @@ export default function BotChatScreen() {
     return () => setActive(null);
   }, [bot?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!bot && bots.length) router.replace("/"); }, [bot, bots]);
-  // The composer's left button opens this bot's Plugins screen directly (no intermediate sheet).
-  const onPlus = useCallback(() => { if (bot) router.push(`/plugins/${bot.id}`); }, [bot]);
   if (!bot) return <View style={{ flex: 1, backgroundColor: colors.canvas }} />;
+  const headerH = insets.top + 56;
+  const topInset = headerH + (searching && !bot.needsKey ? 48 : 0);
+  const bottomInset = bot.needsKey ? insets.bottom : composerH;
   const busy = chat.busy;
   const m = menu?.role === "assistant" ? (menu as AssistantTurn) : undefined;
   const live = m ? (turns.find((t) => t.id === m.id) as AssistantTurn | undefined) : undefined;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }}>
-      <Header bot={bot} top={insets.top} onMenu={() => setChatMenu(true)} />
-      <KeyboardAvoidingView style={{ flex: 1, paddingTop: insets.top + 56 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        {searching && !bot.needsKey ? (
-          <SearchBar query={query} setQuery={setQuery} position={[matches.length ? Math.min(hit + 1, matches.length) : 0, matches.length]}
-            onPrev={() => goMatch(hit - 1)} onNext={() => goMatch(hit + 1)} onClose={() => { setSearching(false); setQuery(""); }} />
-        ) : null}
-        {body === "setup" ? <SetupChat bot={bot} /> : body === "skeleton" ? <ChatSkeleton /> : body === "empty" ? (
-          <EmptyChat bot={bot} error={chat.error} onPick={onSend} onRetry={() => void loadChat(bot, true)} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        {/* Edge to edge: the chat runs under the floating header pills and the composer; the list's
+            insets keep the first and last message clear of them. Inverted list: paddingTop is the visual bottom. */}
+        {body === "setup" || body === "skeleton" || body === "empty" ? (
+          <View style={{ flex: 1, paddingTop: topInset, paddingBottom: bottomInset }}>
+            {body === "setup" ? <SetupChat bot={bot} /> : body === "skeleton" ? <ChatSkeleton /> : (
+              <EmptyChat bot={bot} error={chat.error} onPick={onSend} onRetry={() => void loadChat(bot, true)} />
+            )}
+          </View>
         ) : (
           <View style={{ flex: 1 }}>
             <FlatList ref={list} data={rows} keyExtractor={(r) => r.key} renderItem={render} inverted
               maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 120 }}
               onScroll={onScroll} scrollEventThrottle={64} keyboardShouldPersistTaps="handled"
               removeClippedSubviews={false} initialNumToRender={12} maxToRenderPerBatch={8} windowSize={11}
-              contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 16, paddingBottom: 12, gap: 18 }} />
-            {away ? <JumpButton unseen={unseen} onPress={jump} /> : null}
+              scrollIndicatorInsets={{ top: topInset, bottom: bottomInset }}
+              contentContainerStyle={{ paddingHorizontal: 14, paddingTop: bottomInset + 12, paddingBottom: topInset + 12, gap: 18 }} />
+            {away ? <JumpButton unseen={unseen} onPress={jump} bottom={bottomInset + 12} /> : null}
           </View>
         )}
-        <View style={{ paddingBottom: insets.bottom, display: bot.needsKey ? "none" : "flex" }}>
-          <Composer botId={bot.id} busy={busy} placeholder={`Ask ${bot.name}`} onSend={onSend} onStop={onStop} onPlus={onPlus}
+        <Scrim side="top" style={{ top: 0, height: topInset + 28 }} />
+        {searching && !bot.needsKey ? (
+          <View style={{ position: "absolute", top: headerH, left: 0, right: 0, zIndex: 2 }}>
+            <SearchBar query={query} setQuery={setQuery} position={[matches.length ? Math.min(hit + 1, matches.length) : 0, matches.length]}
+              onPrev={() => goMatch(hit - 1)} onNext={() => goMatch(hit + 1)} onClose={() => { setSearching(false); setQuery(""); }} />
+          </View>
+        ) : null}
+        <View onLayout={(e) => { const h = Math.round(e.nativeEvent.layout.height); if (Math.abs(h - composerH) > 1) setComposerH(h); }}
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingTop: 10, paddingBottom: insets.bottom, display: bot.needsKey ? "none" : "flex" }}>
+          <Scrim side="bottom" style={{ top: 0, bottom: 0 }} />
+          <Composer botId={bot.id} busy={busy} placeholder={`Ask ${bot.name}`} onSend={onSend} onStop={onStop}
             onSteer={onSteer} canSteer={steerable(runningTurn(turns))} editing={!!editing} onCancelEdit={() => setEditing(null)} />
         </View>
       </KeyboardAvoidingView>
+      <Header bot={bot} top={insets.top} onMenu={() => setChatMenu(true)} />
       <MessageMenu turn={menu} reaction={menuReaction} onClose={() => setMenu(null)} actions={{
         react: (e) => menu && react(menu.id, e),
         quote: () => { if (menu) setDraftText(bot.id, quoteOf(menu.text)); },
@@ -406,6 +421,7 @@ export default function BotChatScreen() {
         <SheetRow icon={<Cpu size={20} color={colors.text} />} label={bot.model ? `Model · ${bot.model}` : "Model"} onPress={() => { setChatMenu(false); setModelSheet(true); }} />
         <SheetRow icon={<Phone size={20} color={colors.text} />} label="Voice call" onPress={() => { setChatMenu(false); router.push(`/call/${bot.id}`); }} />
         <SheetRow icon={<FileDown size={20} color={colors.text} />} label="Export as Markdown" onPress={() => { setChatMenu(false); exportChat(); }} />
+        <SheetRow icon={<Blocks size={20} color={colors.text} />} label="Plugins" onPress={() => { setChatMenu(false); router.push(`/plugins/${bot.id}`); }} />
         <SheetRow icon={<Settings2 size={20} color={colors.text} />} label="Bot settings" onPress={() => { setChatMenu(false); router.push(`/bot-info/${bot.id}`); }} />
       </Sheet>
       <Sheet visible={modelSheet} onClose={() => setModelSheet(false)}>

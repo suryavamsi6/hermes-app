@@ -1,5 +1,17 @@
 # TODO (after the Oct 25, 2026 session)
 
+## v0.11.1 (versionCode 23)
+- Chat runs edge to edge: messages scroll under the floating header pills (back, face + name + status,
+  "…") and under the composer, with soft SVG top/bottom fades (`src/ui/scrim.tsx`); list insets follow
+  the safe areas and the composer's measured height.
+- Composer: the left button is now "+" and opens the Attach sheet (Photos / Camera / Files; long
+  press = camera). No paperclip or image button inside the text box. Plugins moved to the chat "…" menu.
+  Home's bottom-left "More" button is unchanged.
+- Notice chips: "IMPORTANT:" / "SYSTEM:"-style prefixes dropped; Hermes process notices get a short
+  title ("Background process finished", "…failed (exit 7)", "…stopped", "…still running"); the
+  expanded body shows the command and its output as a code block.
+- Verified in the demo web export only (docs/polish/v0.11.1/); not yet on the phone.
+
 ## v0.11.0 (versionCode 22): polish, personality and motion
 Shipped (evolution of the existing look: same palette, layouts, navigation, faces and backend):
 - **Motion system** (`src/ui/motion-tokens.ts`): press 90 ms, quick 140, base 200, sheet 240/180,

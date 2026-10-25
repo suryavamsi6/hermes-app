@@ -39,13 +39,35 @@ function textsIn(v: unknown, out: string[], depth = 0) {
 
 export type Notice = { title: string; body: string };
 
+// "IMPORTANT:", "SYSTEM:", "NOTICE:" … are for the model; the chip shouldn't spend its width on them.
+const PREFIX = /^(?:(?:SYSTEM|NOTICE|IMPORTANT|URGENT|NOTE|INFO|ALERT)\s*:\s*)+/i;
+
+/** Hermes's process notices (tools/process_registry_notifications.py) as a short, whole-word title:
+ *  "Background process proc_ab12 completed normally (exit code 0)." → "Background process finished". */
+export function summarizeHead(head: string): string {
+  const bp = /^Background process \S+ (.*)$/i.exec(head);
+  if (!bp) return head;
+  const rest = bp[1];
+  const code = /\(exit code (-?\d+)/i.exec(rest)?.[1];
+  if (/^heartbeat/i.test(rest)) return "Background process still running";
+  if (/^matched watch pattern/i.test(rest)) return "Background process matched a watch";
+  if (/^completed normally/i.test(rest)) return "Background process finished";
+  if (/^terminated by/i.test(rest)) return "Background process stopped";
+  if (/^marked lost/i.test(rest)) return "Background process lost";
+  if (/^failed to start/i.test(rest)) return "Background process failed to start";
+  if (/^(?:exited|completed)/i.test(rest)) return code === "0" ? "Background process finished" : code ? `Background process failed (exit ${code})` : "Background process ended";
+  return head;
+}
+
 /** Title (one line) and readable body for a gateway notice. */
 export function parseNotice(raw: string): Notice {
   let text = raw.slice(0, raw.indexOf(NOTICE_MARKER) >= 0 ? raw.indexOf(NOTICE_MARKER) : raw.length).trim();
   // A JSON payload (array or object) anywhere in it: show its message strings, not the dump.
   // Try each "[" / "{" as the start of a JSON tail ("[SYSTEM: …]" headers come first).
   let lead = text, body = "";
-  for (let start = text.search(/[[{]/), tries = 0; start >= 0 && tries < 20; start = text.slice(start + 1).search(/[[{]/) + start + 1, tries++) {
+  // A process notice carries raw command output, which may itself be JSON: never mine that.
+  const proc = /^\[?(?:IMPORTANT:\s*)?Background process /i.test(text);
+  for (let start = proc ? -1 : text.search(/[[{]/), tries = 0; start >= 0 && tries < 20; start = text.slice(start + 1).search(/[[{]/) + start + 1, tries++) {
     let parsed: unknown;
     try { parsed = JSON.parse(text.slice(start)); } catch { if (text.slice(start + 1).search(/[[{]/) < 0) break; continue; }
     const found: string[] = [];
@@ -53,8 +75,13 @@ export function parseNotice(raw: string): Notice {
     if (found.length) { lead = text.slice(0, start).trim(); body = found.join("\n\n"); }
     break;
   }
-  if (!body) body = decodeEscapes(text);
-  const head = decodeEscapes(lead).split("\n").map((l) => l.replace(/^\[|\]$/g, "").replace(/^(SYSTEM|NOTICE)\s*:\s*/i, "").trim()).find((l) => l && !/^[[{]/.test(l));
+  if (!body) {
+    body = decodeEscapes(text).replace(/^\[([\s\S]*)\]$/, "$1").replace(PREFIX, "");
+    // A process's output is verbatim terminal text: show it as a code block, not markdown.
+    body = body.replace(/\nOutput:\n([\s\S]*\S[\s\S]*)$/, (all, out: string) => (out.includes("```") ? all : `\n\nOutput:\n\`\`\`\n${out.replace(/\s+$/, "")}\n\`\`\``));
+  }
+  const raw0 = decodeEscapes(lead).split("\n").map((l) => l.replace(/^\[|\]$/g, "").replace(PREFIX, "").trim()).find((l) => l && !/^[[{]/.test(l));
+  const head = raw0 ? summarizeHead(raw0) : raw0;
   const title = (head && head.length <= 90 ? head : head ? `${head.slice(0, 87)}…` : "") || (/deliver|routine|cron|job/i.test(text) ? "Background update delivered" : "Background update");
   return { title, body: body.trim() };
 }

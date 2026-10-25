@@ -1,7 +1,7 @@
-// Composer: a round Plugins button (opens the bot's Plugins screen), then an "Ask <bot>" pill with the
-// attachment strip, an attach button (photos, camera, files), a dictation mic and one round action button: send when idle; while a reply is running it's
+// Composer: a round "+" button on the left (the only attach control; opens Photos / Camera / Files, long
+// press = camera), then an "Ask <bot>" pill with the attachment strip, a dictation mic and one round action button: send when idle; while a reply is running it's
 // "add to this reply" (steer) if you typed something, else stop.
-import { ArrowUp, Blocks, Camera, CornerDownRight, FileText, Image as ImageIcon, Mic, Paperclip, Square, X } from "lucide-react-native";
+import { ArrowUp, Camera, CornerDownRight, FileText, Image as ImageIcon, Mic, Plus, Square, X } from "lucide-react-native";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { setDraftText, setListening, useDraft } from "../app-state";
@@ -21,14 +21,13 @@ type Props = {
   /** Add the text to the running reply; resolve false to keep the draft (e.g. the run already ended). */
   onSteer?: (t: string) => Promise<boolean>;
   canSteer?: boolean;
-  onPlus?: () => void;
   placeholder?: string;
   /** Shown above the pill while editing a sent message. */
   editing?: boolean; onCancelEdit?: () => void;
 };
 
 /** The text is the bot's draft (kept per bot, across restarts), so only this component re-renders while typing. */
-export const Composer = memo(function Composer({ botId, busy, onSend, onStop, onSteer, canSteer, onPlus, placeholder = "Ask Hermes", editing, onCancelEdit }: Props) {
+export const Composer = memo(function Composer({ botId, busy, onSend, onStop, onSteer, canSteer, placeholder = "Ask Hermes", editing, onCancelEdit }: Props) {
   const text = useDraft(botId);
   const images = useAttachments(botId);
   const files = useFileAttachments(botId);
@@ -85,12 +84,11 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
         </View>
       ) : null}
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
-        {onPlus ? (
-          <Pressable accessibilityLabel="Plugins" onPress={onPlus} hitSlop={6}
-            style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.control : colors.floating, borderWidth: 1, borderColor: colors.border })}>
-            <Blocks size={22} color={colors.text} />
-          </Pressable>
-        ) : null}
+        <Pressable accessibilityLabel="Attach photos or files" accessibilityHint="Opens Photos, Camera and Files" disabled={working} hitSlop={6}
+          onPress={() => { tapHaptic(); setMenu(true); }} onLongPress={() => void attach("camera")}
+          style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.control : colors.floating, borderWidth: 1, borderColor: colors.border })}>
+          {working ? <ActivityIndicator color={colors.muted} /> : <Plus size={24} strokeWidth={2.2} color={colors.text} />}
+        </Pressable>
         <View style={{ flex: 1, minHeight: 48, backgroundColor: colors.floating, borderRadius: radii.pill, borderWidth: 1,
           borderColor: voice.listening ? colors.accentText : colors.border, paddingLeft: 18, paddingRight: 5, paddingVertical: 4 }}>
           {files.length ? (
@@ -125,11 +123,6 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
               placeholderTextColor={colors.muted} accessibilityLabel={placeholder}
               onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
               multiline style={{ flex: 1, color: colors.text, fontFamily: font.regular, fontSize: 17, maxHeight: 140, paddingVertical: 9 }} />
-            <Pressable accessibilityLabel="Attach photos or files" disabled={working} hitSlop={4}
-              onPress={() => { tapHaptic(); setMenu(true); }} onLongPress={() => void attach("camera")}
-              style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.controlActive : "transparent" })}>
-              {working ? <ActivityIndicator color={colors.muted} /> : <Paperclip size={20} color={colors.muted} />}
-            </Pressable>
             <Pressable accessibilityLabel={voice.listening ? "Stop voice typing" : "Voice typing"} onPress={voice.toggle} hitSlop={4}
               style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: voice.listening ? colors.controlActive : "transparent" }}>
               <Mic size={20} color={voice.listening ? colors.accentText : colors.muted} />

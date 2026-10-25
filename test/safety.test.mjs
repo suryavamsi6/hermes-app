@@ -56,6 +56,20 @@ test("a notice without JSON or a header still gets a sensible chip", () => {
   assert.match(parseNotice(`[{"status":"settled","delivery_id":"x"}]\n\n${FOOTER}`).title, /^Background update/);
 });
 
+test("process notices get a short whole-word title; IMPORTANT-style prefixes are dropped", () => {
+  const done = parseNotice(`[IMPORTANT: Background process proc_9f2c completed normally (exit code 0).\nCommand: python sync.py\nOutput:\nok]\n\n${FOOTER}`);
+  assert.equal(done.title, "Background process finished");
+  assert.match(done.body, /Command: python sync\.py/);
+  assert.match(done.body, /Output:\n```\nok\n```$/);
+  assert.ok(!/^\[|IMPORTANT/.test(done.body), done.body);
+  const fail = (s) => parseNotice(`[IMPORTANT: Background process proc_1 ${s}.\nCommand: x\nOutput:\n]\n\n${FOOTER}`).title;
+  assert.equal(fail("exited (exit code 7)"), "Background process failed (exit 7)");
+  assert.equal(fail("terminated by Hermes (exit code -15, SIGTERM)"), "Background process stopped");
+  assert.equal(fail("failed to start (exit code ?)"), "Background process failed to start");
+  assert.equal(parseNotice(`[Background process p heartbeat #3 — still running after 2m]\n\n${FOOTER}`).title, "Background process still running");
+  assert.equal(parseNotice(`[IMPORTANT: Watch disabled for proc_2 after too many matches]\n\n${FOOTER}`).title, "Watch disabled for proc_2 after too many matches");
+});
+
 test("escapes: decoded when text clearly arrived double-encoded, code fences left alone", () => {
   assert.equal(decodeEscapes("a\\nb \\u2014 c \\\"q\\\""), 'a\nb — c "q"');
   assert.equal(tidyEscapes("Pay \\u20b9500 today"), "Pay ₹500 today");
