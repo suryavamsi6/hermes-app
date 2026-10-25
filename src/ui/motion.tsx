@@ -28,7 +28,7 @@ export function Rise({ play = true, delay = 0, dy = 10, scale = 1, style, childr
   useEffect(() => {
     if (on) p.value = withDelay(delay, withTiming(1, { duration: 260, easing: EASE }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount only
-  const a = useAnimatedStyle(() => (p.value >= 1 ? { opacity: 1, transform: [] } : {
+  const a = useAnimatedStyle(() => ({
     opacity: p.value,
     transform: [{ translateY: (1 - p.value) * dy }, { scale: scale + (1 - scale) * p.value }],
   }));

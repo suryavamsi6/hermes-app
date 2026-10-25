@@ -2,11 +2,10 @@ import { useFonts } from "expo-font";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/app-state";
 import { clearBotNotifications, ensureNotifications, onNotificationTap } from "../src/notify";
-import { registerReplyCheck } from "../src/background-check";
 import { colors } from "../src/ui/theme";
 import { loadPrefs } from "../src/prefs";
 import { AppLock } from "../src/ui/app-lock";
@@ -19,7 +18,7 @@ void loadPrefs();
 function NotificationTaps() {
   const { bots, approve } = useApp();
   // Channel + Android 13 permission at launch, while in the foreground (the only time Android can ask).
-  useEffect(() => { void ensureNotifications(true).then(() => registerReplyCheck()); }, []);
+  useEffect(() => { void ensureNotifications(true).catch(() => {}); }, []);
   useEffect(() => onNotificationTap((t, dismiss) => {
     const bot = bots.find((b) => b.id === t.botId);
     if (!bot) return;
@@ -29,6 +28,21 @@ function NotificationTaps() {
     router.push(`/bot/${bot.id}`);
   }), [bots, approve]);
   return null;
+}
+
+/** expo-router shows this instead of crashing when a screen throws while rendering: the error text
+ *  (for a screenshot) and Try again. */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: colors.canvas }} contentContainerStyle={{ padding: 24, paddingTop: 80, gap: 14 }}>
+      <Text style={{ color: colors.text, fontSize: 20 }}>Hermes hit a problem</Text>
+      <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{String(error?.message ?? error)}</Text>
+      <Text selectable style={{ color: colors.dim, fontSize: 11 }}>{String(error?.stack ?? "").slice(0, 1500)}</Text>
+      <Pressable onPress={() => void retry()} style={{ alignSelf: "flex-start", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: colors.control }}>
+        <Text style={{ color: colors.text }}>Try again</Text>
+      </Pressable>
+    </ScrollView>
+  );
 }
 
 export default function RootLayout() {

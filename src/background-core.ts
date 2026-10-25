@@ -1,4 +1,4 @@
-// Pure part of the background reply check (see background-check.ts): which assistant messages are new.
+// Pure part of a (currently disabled) background reply check: which assistant messages are new. See TODO.md.
 export type Watch = { since: number; chats: { botId: string; sid: string }[] };
 type Msg = { role: "user" | "assistant"; text: string; at?: number };
 

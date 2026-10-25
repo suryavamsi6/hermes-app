@@ -12,7 +12,6 @@ import { type HermesConfig, loadConfig, saveConfig } from "./config";
 import { DemoBackend } from "./demo-backend";
 import { LiveBackend } from "./live-backend";
 import * as Store from "./secure";
-import { markNotified, saveWatch } from "./background-check";
 import { createStore, useStore } from "./store";
 import type { FaceMood } from "./ui/bot-face";
 import type { ApprovalChoice } from "./chat-model";
@@ -165,7 +164,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const finish = (a: Extract<TurnAction, { type: "done" }>, acc: string) => {
       patchChat(bot.id, (c) => ({ ...c, busy: false }));
       if (a.status === "completed") { cheer(bot.id); if (active.current === bot.id && appActive.current) doneHaptic(); }
-      if (!appActive.current && (a.status === "completed" || a.status === "failed")) { void notifyDone(bot, a.status === "completed" ? plain(acc) || "Reply ready" : `Couldn't finish: ${a.error ?? "the run failed"}`, a.status === "failed"); void markNotified(); }
+      if (!appActive.current && (a.status === "completed" || a.status === "failed")) void notifyDone(bot, a.status === "completed" ? plain(acc) || "Reply ready" : `Couldn't finish: ${a.error ?? "the run failed"}`, a.status === "failed");
       if (acc) setPreview((p) => ({ ...p, [bot.id]: plain(acc) }));
       touch(bot.id);
       if (active.current !== bot.id) setUnread((u) => ({ ...u, [bot.id]: (u[bot.id] ?? 0) + 1 }));
@@ -272,8 +271,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // "Reconnecting") and resume silently when the app is back.
       if (st !== "active") {
         flushDrafts(); Object.values(aborts.current).forEach((h) => h?.quiet?.(true));
-        // What the background reply check watches while the app is away (see background-check.ts).
-        if (was) void saveWatch(Object.entries(chats()).filter(([, c]) => c?.sessionId).map(([botId, c]) => ({ botId, sid: c!.sessionId! })));
         return;
       }
       if (was) return;
