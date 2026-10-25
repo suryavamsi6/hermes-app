@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hermes Mobile: an Android app for your own Hermes Agent</title>
+<meta name="description" content="An open-source Android client for the Hermes Agent you already run. Every Hermes profile is a bot with its own face. Chat, watch it work, approve commands. Talks only to your server.">
+<meta name="theme-color" content="#09090b">
+<meta property="og:title" content="Hermes Mobile">
+<meta property="og:description" content="An Android app for the Hermes Agent you already run. Your server, your keys, nothing in between.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://suryavamsi6.github.io/hermes-app/">
+<meta property="og:image" content="https://suryavamsi6.github.io/hermes-app/assets/shots/home.webp">
+<link rel="canonical" href="https://suryavamsi6.github.io/hermes-app/">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/inter-regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/inter-semibold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/site.css">
+<script>document.documentElement.classList.add("js")</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="bar">
+  <a class="brand" href="./" aria-label="Hermes Mobile, home">
+    <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="9" fill="#f2f2f4"/><path d="M10 9v14M22 9v14M10 16h12" stroke="#09090b" stroke-width="3" stroke-linecap="round"/></svg>
+    <span>Hermes Mobile</span>
+  </a>
+  <nav aria-label="Primary">
+    <a href="#setup">Setup</a>
+    <a href="https://github.com/suryavamsi6/hermes-app">GitHub</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <main id="main">
+    <section class="hero" data-shot="home">
+      <button class="poke" type="button" aria-label="Tap the face to say hi">
+        <!--face {"seed":"atlas","shape":"squircle","color":"#8cc8ff","cls":"face-hero"}-->
+      </button>
+      <h1>An Android app for the Hermes&nbsp;you already run.</h1>
+      <p class="lede">Every Hermes profile becomes a bot with its own face. Chat with it, watch what it&rsquo;s doing, and approve risky commands from your phone. It talks only to your server.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="https://github.com/suryavamsi6/hermes-app/releases/latest">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download APK
+        </a>
+        <a class="btn btn-quiet" href="https://github.com/suryavamsi6/hermes-app">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          GitHub
+        </a>
+      </div>
+      <p class="meta">Android 7+ &middot; arm64 APK from GitHub Releases &middot; MIT &middot; No account, no telemetry</p>
+      <figure class="inline-shot">
+        <div class="phone"><img src="assets/shots/home.webp" width="412" height="915" alt="Home screen in demo mode: the primary bot Atlas large at the top, with Forge and Nova listed below with their last messages."></div>
+      </figure>
+    </section>
+
+    <section class="turn" id="what" data-shot="home" aria-labelledby="q-what">
+      <h2 class="ask" id="q-what">What is it, exactly?</h2>
+      <div class="reply">
+        <p>A phone client for <a href="https://github.com/NousResearch/hermes-agent">Hermes Agent</a>, the open-source agent from Nous Research. You run Hermes on your own machine (bare metal, Docker, an Incus container, a VPS, a Pi) and the app connects to its API server over HTTPS. Nothing goes through a third-party service.</p>
+        <p>Each Hermes profile shows up as a bot. Your primary bot sits large at the top of Home; the rest are listed with their last message, unread count and what they&rsquo;re doing right now.</p>
+        <ul class="bots" aria-label="Sample bots from demo mode">
+          <li><!--face {"seed":"atlas","shape":"squircle","color":"#8c7bff","color2":"#1d2b4f"}--><div><b>Atlas</b><span>Your main agent. Plans your day, keeps notes</span></div></li>
+          <li><!--face {"seed":"forge","shape":"hexagon","color":"#1f5a42"}--><div><b>Forge</b><span class="warn">Needs your OK</span></div></li>
+          <li><!--face {"seed":"nova","shape":"flower","color":"#ffd66b"}--><div><b>Nova</b><span>Watches the markets and your watchlist</span></div></li>
+        </ul>
+        <p class="note">Sample bots from the app&rsquo;s built-in demo mode. You can create bots from the phone too: name, persona, model and look.</p>
+      </div>
+    </section>
+
+    <section class="turn" id="faces" data-shot="faces" aria-labelledby="q-faces">
+      <h2 class="ask" id="q-faces">Why do they have faces?</h2>
+      <div class="reply">
+        <p>So you can tell what a bot is doing at a glance. A face only changes when the chat says so: it never looks busy, pleased or expectant unless it is.</p>
+        <ul class="moods">
+          <li><!--face {"seed":"atlas","shape":"squircle","color":"#8cc8ff","mood":"idle"}--><b>Idle</b><span>Nothing going on</span></li>
+          <li><!--face {"seed":"atlas","shape":"squircle","color":"#8cc8ff","mood":"listening"}--><b>Listening</b><span>You&rsquo;re typing</span></li>
+          <li><!--face {"seed":"atlas","shape":"squircle","color":"#8cc8ff","mood":"thinking"}--><b>Thinking</b><span>A run started</span></li>
+          <li><!--face {"seed":"atlas","shape":"squircle","color":"#8cc8ff","mood":"working"}--><b>Working</b><span>A tool is running</span></li>
+          <li><!--face {"seed":"atlas","shape":"squircle","color":"#8cc8ff","mood":"waiting"}--><b>Waiting</b><span>Needs your OK</span></li>
+          <li><!--face {"seed":"atlas","shape":"squircle","color":"#8cc8ff","mood":"success"}--><b>Success</b><span>A reply landed</span></li>
+          <li><!--face {"seed":"atlas","shape":"squircle","color":"#8cc8ff","mood":"error"}--><b>Error</b><span>The run failed</span></li>
+        </ul>
+        <p>Each bot blinks and breathes at its own uneven rhythm, so a row of them never moves in step. Pick from eight shapes, a dozen colours and four eye styles. Faces pause off-screen and stay still with Android&rsquo;s <i>Remove animations</i> setting.</p>
+      </div>
+    </section>
+
+    <section class="turn" id="work" data-shot="chat-tool-steps" aria-labelledby="q-work">
+      <h2 class="ask" id="q-work">Can I see what it&rsquo;s doing?</h2>
+      <div class="reply">
+        <div class="status" aria-hidden="true">
+          <!--face {"seed":"atlas","shape":"squircle","color":"#8c7bff","color2":"#1d2b4f","mood":"working","cls":"face-xs"}-->
+          <span class="status-text" data-phrases="Searching the web for What can you do?|Running systemctl list-units --state=running|Reading nginx.conf|Looking back through past chats|Putting it together">Searching the web for What can you do?</span>
+        </div>
+        <p>Yes. While a reply is being worked on, a live line says what&rsquo;s happening, built from the run&rsquo;s own events. Each tool call becomes a step you can open to see the command and its output.</p>
+        <figure class="steps" aria-label="Example tool steps from demo mode">
+          <div class="steps-head">2 steps &middot; web_search, terminal</div>
+          <div class="step"><span class="tick" aria-hidden="true"></span><div><b>Searching the web</b><code>What can you do?</code></div><span class="tool">web_search</span></div>
+          <div class="step"><span class="tick" aria-hidden="true"></span><div><b>Running a command</b><code>systemctl list-units --state=running</code></div><span class="tool">terminal</span></div>
+        </figure>
+        <figure class="inline-shot"><div class="phone"><img src="assets/shots/chat-tool-steps.webp" width="412" height="915" loading="lazy" alt="Atlas in demo mode answering with two finished tool steps, a markdown table of running services, and a code block with a copy button."></div></figure>
+        <p>Replies stream with markdown, tables and copyable code. Type while it&rsquo;s working to steer it, or tap stop. If the connection drops, the app reconnects and resumes the same run without sending your message twice.</p>
+      </div>
+    </section>
+
+    <section class="turn" id="approvals" data-shot="approval" aria-labelledby="q-ok">
+      <h2 class="ask" id="q-ok">Will it run things without asking?</h2>
+      <div class="reply">
+        <p>Not the things Hermes is set to ask about. When a command needs your OK, the run pauses and a card explains what it wants to do.</p>
+        <figure class="approval" aria-label="Example approval card from demo mode">
+          <div class="approval-k">Needs your OK</div>
+          <div class="approval-t">Run a terminal command</div>
+          <div class="approval-s">The run is paused. Nothing happens until you choose.</div>
+          <pre><code>sudo rm /var/log/*.gz   # 37 files, 412 MB</code></pre>
+          <div class="approval-row" aria-hidden="true"><span>Deny</span><span>Edit</span><span class="on">Allow once</span></div>
+          <div class="approval-links" aria-hidden="true"><span>Allow for this chat</span><span>Always allow</span></div>
+        </figure>
+        <p>The card only clears after Hermes accepts your answer. Approvals also arrive as notifications with Allow and Deny buttons, and Hermes&rsquo;s own approval settings still apply to everything the app sends.</p>
+      </div>
+    </section>
+
+    <section class="turn" id="more" data-shot="routines" aria-labelledby="q-more">
+      <h2 class="ask" id="q-more">What else can I do from the phone?</h2>
+      <div class="reply">
+        <dl class="list">
+          <div><dt>Attachments</dt><dd>Photos, camera or files. Images go inline; text files (code, CSV, JSON, Markdown) as text.</dd></div>
+          <div><dt>Routines</dt><dd>Hermes cron jobs: list, run now, pause, resume, delete.</dd></div>
+          <div><dt>MCP servers</dt><dd>Add, enable, test, or install from Hermes&rsquo;s catalog.</dd></div>
+          <div><dt>Plugins and skills</dt><dd>Browse and toggle plugins, skills, toolsets, the memory provider and the persona (SOUL.md).</dd></div>
+          <div><dt>Gateway notices</dt><dd>A finished background job or a delivered routine shows as a small chip in the chat.</dd></div>
+          <div><dt>Voice</dt><dd>Dictation in the composer, read aloud, and a simple voice-call screen.</dd></div>
+          <div><dt>Privacy</dt><dd>Quiet hours, &ldquo;New reply&rdquo;-only notifications, and an optional fingerprint or screen-lock app lock.</dd></div>
+          <div><dt>History</dt><dd>Search in a chat, older sessions, export as Markdown, reactions, quote-reply, edit and resend.</dd></div>
+        </dl>
+        <figure class="inline-shot"><div class="phone"><img src="assets/shots/routines.webp" width="412" height="915" loading="lazy" alt="Routines screen in demo mode listing scheduled jobs for Atlas, Forge and Nova, with run, pause and delete controls."></div></figure>
+        <p class="note">Routines, MCP, plugins, skills and memory need the optional <a href="https://github.com/suryavamsi6/hermes-bridge">hermes-bridge</a>. Chat works without it.</p>
+      </div>
+    </section>
+
+    <section class="turn" id="connect" data-shot="settings" aria-labelledby="q-connect">
+      <h2 class="ask" id="q-connect">How does it reach my server?</h2>
+      <div class="reply">
+        <p>Over HTTPS, through whatever you already use to reach your machine from outside.</p>
+        <figure class="route">
+          <ol class="hops">
+            <li class="hop"><b>Your phone</b><span>Hermes Mobile, keys in Android&rsquo;s encrypted storage</span></li>
+            <li class="hop-link"><span class="wire">HTTPS</span></li>
+            <li class="hop"><b>Your proxy</b><span>Tailscale Funnel, Caddy, nginx or Cloudflare Tunnel</span></li>
+            <li class="host">
+              <span class="host-label">Your host</span>
+              <ol class="branches">
+                <li class="branch"><span class="path">/</span><div><b>Hermes API server</b><span><code>127.0.0.1:8642</code> &middot; chat, one key per profile</span></div></li>
+                <li class="branch"><span class="path">/bridge</span><div><b>hermes-bridge</b> <em>optional</em><span><code>127.0.0.1:8765</code> &middot; management, its own key</span></div>
+                  <ol class="branches deep"><li class="branch"><span class="path">loopback</span><div><b>Private dashboard backend</b><span><code>127.0.0.1:9120</code> &middot; never published</span></div></li></ol>
+                </li>
+              </ol>
+            </li>
+          </ol>
+          <figcaption>Chat goes straight to Hermes&rsquo;s API server. Management goes through the bridge, which forwards a short allowlist of dashboard routes; anything else is a 404 that never reaches Hermes. It never forwards the terminal, file browser, secrets or config writes, and the dashboard ports (9119, 9120) are never exposed.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="turn" id="setup" data-shot="settings" aria-labelledby="q-setup">
+      <h2 class="ask" id="q-setup">How do I set it up?</h2>
+      <div class="reply">
+        <ol class="setup">
+          <li><b>Turn on the Hermes API server.</b> Add these to <code>~/.hermes/.env</code> on the machine that runs Hermes, then restart the gateway.
+<pre><code>API_SERVER_ENABLED=true
+API_SERVER_HOST=127.0.0.1
+API_SERVER_PORT=8642
+API_SERVER_KEY=<i>$(openssl rand -hex 32)</i></code></pre></li>
+          <li><b>Reach it over HTTPS.</b> Tailscale Funnel needs no domain or open ports:
+<pre><code>sudo tailscale funnel --bg --https=443 http://127.0.0.1:8642</code></pre>
+            A reverse proxy with TLS on your own domain works the same way.</li>
+          <li><b>Install the APK.</b> Download it from <a href="https://github.com/suryavamsi6/hermes-app/releases/latest">the latest release</a> and allow <i>Install unknown apps</i> for your browser. Updates install over the old version.</li>
+          <li><b>Connect.</b> In <i>Settings &rarr; Connection</i>, enter your server URL and API key. The app checks both before saving and tells you which one is wrong.</li>
+        </ol>
+        <p class="links"><a href="https://github.com/suryavamsi6/hermes-app#what-you-need">Full app guide</a><a href="https://github.com/suryavamsi6/hermes-bridge#quick-start-any-linux-as-the-user-that-runs-hermes">Bridge quick start</a><a href="https://github.com/suryavamsi6/hermes-app#demo-mode">Try demo mode first</a></p>
+      </div>
+    </section>
+
+    <section class="turn" id="not" data-shot="home-needs-ok" aria-labelledby="q-not">
+      <h2 class="ask" id="q-not">What doesn&rsquo;t it do?</h2>
+      <div class="reply">
+        <ul class="nope">
+          <li><b>No push server.</b> Notifications work while the app runs in the background. Swipe it away and it can&rsquo;t notify you.</li>
+          <li><b>Android only.</b> iOS isn&rsquo;t built or tested.</li>
+          <li><b>Not a dashboard replacement.</b> Kanban, the terminal, the file browser and config editing stay in Hermes&rsquo;s own dashboard or CLI.</li>
+          <li><b>Images and text only.</b> PDFs and other binary files aren&rsquo;t supported by the API yet.</li>
+        </ul>
+        <p>It&rsquo;s an early, personal project used daily against a real Hermes. Expect rough edges; issues and pull requests are welcome.</p>
+      </div>
+    </section>
+
+    <section class="close" aria-labelledby="q-close">
+      <!--face {"seed":"nova","shape":"flower","color":"#ffd66b","mood":"success","cls":"face-close"}-->
+      <h2 id="q-close">Try it with your own Hermes.</h2>
+      <p class="close-sub">Or start in <a href="https://github.com/suryavamsi6/hermes-app#demo-mode">demo mode</a>: three sample bots, no server needed.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="https://github.com/suryavamsi6/hermes-app/releases/latest">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download APK
+        </a>
+        <a class="btn btn-quiet" href="https://github.com/suryavamsi6/hermes-bridge">hermes-bridge</a>
+      </div>
+    </section>
+  </main>
+
+  <aside class="stage" aria-hidden="true">
+    <div class="phone phone-stage">
+      <img class="shot is-on" data-name="home" src="assets/shots/home.webp" width="412" height="915" alt="">
+      <img class="shot" data-name="faces" src="assets/shots/faces.webp" width="412" height="915" alt="" loading="lazy">
+      <img class="shot" data-name="chat-tool-steps" src="assets/shots/chat-tool-steps.webp" width="412" height="915" alt="" loading="lazy">
+      <img class="shot" data-name="approval" src="assets/shots/approval.webp" width="412" height="915" alt="" loading="lazy">
+      <img class="shot" data-name="routines" src="assets/shots/routines.webp" width="412" height="915" alt="" loading="lazy">
+      <img class="shot" data-name="settings" src="assets/shots/settings.webp" width="412" height="915" alt="" loading="lazy">
+      <img class="shot" data-name="home-needs-ok" src="assets/shots/home-needs-ok.webp" width="412" height="915" alt="" loading="lazy">
+    </div>
+    <p class="stage-cap">Demo mode, sample bots</p>
+  </aside>
+</div>
+
+<footer class="foot">
+  <p>MIT licensed. Not affiliated with Nous Research; &ldquo;Hermes Agent&rdquo; is their project.</p>
+  <ul>
+    <li><a href="https://github.com/suryavamsi6/hermes-app">hermes-app</a></li>
+    <li><a href="https://github.com/suryavamsi6/hermes-bridge">hermes-bridge</a></li>
+    <li><a href="https://github.com/suryavamsi6/hermes-app/releases">Releases</a></li>
+    <li><a href="https://github.com/suryavamsi6/hermes-app/issues">Issues</a></li>
+    <li><a href="https://github.com/suryavamsi6/hermes-app/blob/main/LICENSE">License</a></li>
+  </ul>
+</footer>
+
+<script src="assets/site.js" defer></script>
+</body>
+</html>
