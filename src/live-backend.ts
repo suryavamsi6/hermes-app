@@ -8,7 +8,7 @@
 import { toJob } from "./job-text";
 import {
   AVATAR_COLORS, AVATAR_EMOJI, type Backend, BOT_CHAT_TITLE, type Bot, type BridgeFeature, ComingSoonError, type Job,
-  type McpServer, type MemoryStatus, type ModelOption, type NewBot, type NewMcp, type Plugin, type SessionInfo, type Skill,
+  type McpCatalogEntry, type McpServer, type MemoryStatus, type ModelOption, type PluginCatalog, type NewBot, type NewMcp, type Plugin, type SessionInfo, type Skill,
   STARTER_TOOLSETS, type Toolset,
 } from "./backend";
 import { BridgeClient, BridgeError } from "./bridge";
@@ -246,7 +246,30 @@ export class LiveBackend implements Backend {
       enabled: Boolean(p.enabled), tools: p.tools ?? [], skills: [], source: p.source ?? undefined,
       toggleHint: r.toggle_supported ? undefined : `hermes -p ${b.profile} plugins ${p.enabled ? "disable" : "enable"} ${p.name}` }));
   }
-  async installPlugin(_: Bot, name: string): Promise<never> { throw new Error(`Install plugins on the server: hermes plugins install ${name}`); }
+  async installPlugin(b: Bot, name: string) {
+    let r;
+    try { r = await this.need("plugins").installCatalogPlugin(b.profile, name); }
+    catch (e) {
+      if (e instanceof BridgeError && e.status === 404 && e.code !== "plugin_install_unsupported") throw new Error(`This hermes-bridge can't install plugins yet (update it), or run on the server: hermes -p ${b.profile} plugins install ${name}`);
+      if (e instanceof BridgeError) throw new Error(e.message);
+      throw e;
+    }
+    if (r?.consent_required) throw new Error(`Hermes wants a confirmation for ${name} first. Run on the server: hermes -p ${b.profile} plugins install ${name}`);
+  }
+  async listPluginCatalog(b: Bot): Promise<PluginCatalog> {
+    let r;
+    try { r = await this.need("plugins").pluginCatalog(b.profile); }
+    catch (e) { if (e instanceof BridgeError && e.status === 404) throw new Error("The marketplace needs a newer hermes-bridge (0.2+) on the server."); throw e; }
+    return { installSupported: Boolean(r.install_supported), entries: (r.entries ?? []).map((e) => ({ name: e.name, title: e.title || e.name, description: e.description ?? "",
+      maintainer: e.maintainer ?? undefined, tier: e.tier ?? undefined, category: e.category ?? undefined, version: e.version ?? undefined, installed: Boolean(e.installed),
+      updateAvailable: Boolean(e.update_available), requiresEnv: e.requires_env ?? [], tools: e.provides_tools ?? [] })) };
+  }
+  async listMcpCatalog(b: Bot): Promise<McpCatalogEntry[]> {
+    return (await this.need("mcp").mcpCatalog(b.profile)).map((e) => ({ name: e.name, description: e.description ?? "", transport: e.transport ?? "", authType: e.auth_type ?? "none",
+      requiredEnv: (e.required_env ?? []).map((v) => ({ name: v.name, prompt: v.prompt, required: v.required !== false })), installed: Boolean(e.installed), enabled: Boolean(e.enabled),
+      command: e.command ?? undefined, url: e.url ?? undefined }));
+  }
+  async installMcpCatalog(b: Bot, name: string, env: Record<string, string>) { await this.need("mcp").installMcpCatalog(b.profile, name, env); }
   async setPluginEnabled(b: Bot, name: string, enabled: boolean) {
     try { await this.need("plugins").pluginAction(b.profile, name, enabled ? "enable" : "disable"); }
     catch (e) { if (e instanceof BridgeError && e.code === "plugin_toggle_unsupported") throw new Error(e.message); throw e; }

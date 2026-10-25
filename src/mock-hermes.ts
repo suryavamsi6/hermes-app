@@ -2,6 +2,8 @@
 // streamed markdown reply, simulated tool steps, and an approval that resolves locally.
 import type { TurnAction } from "./chat-model";
 import type { ChatClient, OnAction } from "./hermes";
+import { HermesError } from "./errors";
+import { inputText, type TurnInput } from "./run-stream";
 
 type Msg = { role: "user" | "assistant"; content: string; timestamp?: number };
 export type Session = { id: string; title: string; messages: Msg[] };
@@ -78,12 +80,22 @@ export class MockHermesClient implements ChatClient {
   /** How long the "flaky" demo stays in the reconnecting state. */
   flakyMs = 2500;
 
-  streamTurn(sessionId: string, input: string, onAction: OnAction): () => void {
+  private steers = new Map<string, string[]>();
+  async steer(runId: string, text: string) {
+    const list = this.steers.get(runId);
+    if (!list) throw new HermesError(409, `/v1/runs/${runId}/steer`, "run_not_accepting_steer", "This reply already finished. Send it as a new message.");
+    list.push(text);
+  }
+
+  streamTurn(sessionId: string, turnInput: TurnInput, onAction: OnAction): () => void {
     let cancelled = false;
     const runId = `run-${++this.runs}`;
+    const images = typeof turnInput === "string" ? 0 : turnInput.filter((p) => p.type === "image_url").length;
+    const input = inputText(turnInput);
+    this.steers.set(runId, []);
     const emit = (a: TurnAction) => { if (!cancelled) onAction(a); };
     const session = this.sessions.find((s) => s.id === sessionId);
-    session?.messages.push({ role: "user", content: input, timestamp: Date.now() / 1000 });
+    session?.messages.push({ role: "user", content: turnInput as any, timestamp: Date.now() / 1000 });
 
     (async () => {
       emit({ type: "run", runId });
@@ -123,18 +135,22 @@ export class MockHermesClient implements ChatClient {
           if (cancelled) return;
           emit({ type: "tool", phase: "completed", tool: t.tool, preview: t.result });
         }
-        await this.words(this.replyFor(input), emit, () => cancelled);
+        const seen = images ? `I can see ${images === 1 ? "the photo" : `${images} photos`} you sent. ` : "";
+        await this.words(seen + this.replyFor(input || "photo"), emit, () => cancelled);
+        const added = this.steers.get(runId) ?? [];
+        if (added.length && !cancelled) await this.words(`\n\nAlso, as you asked: **${added.join("; ")}**. Noted and applied.`, emit, () => cancelled, true);
       }
+      this.steers.delete(runId);
       if (cancelled) return;
       emit({ type: "done", status: "completed" });
       session?.messages.push({ role: "assistant", content: this.lastText, timestamp: Date.now() / 1000 });
     })();
-    return () => { cancelled = true; this.approvals.get(runId)?.("deny"); };
+    return () => { cancelled = true; this.steers.delete(runId); this.approvals.get(runId)?.("deny"); };
   }
 
   private lastText = "";
-  private async words(text: string, emit: (a: TurnAction) => void, isCancelled: () => boolean) {
-    this.lastText = text;
+  private async words(text: string, emit: (a: TurnAction) => void, isCancelled: () => boolean, append = false) {
+    this.lastText = append ? this.lastText + text : text;
     for (const piece of text.match(/\S+\s*|\s+/g) ?? []) {
       if (isCancelled()) return;
       emit({ type: "delta", text: piece });

@@ -22,8 +22,15 @@ export type RunTarget = {
   headers: (extra?: Record<string, string>) => Record<string, string>;
   fetch: (url: string, init: any) => Promise<Response>;
 };
+/** One part of a multimodal message, in the canonical shape Hermes's API server accepts
+ *  (gateway/platforms/api_server.py _normalize_multimodal_content): text, or an image as a data: URL. */
+export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+/** A turn's input: plain text, or text plus images. */
+export type TurnInput = string | ContentPart[];
+export const inputText = (i: TurnInput) => (typeof i === "string" ? i : i.map((p) => (p.type === "text" ? p.text : "")).join("\n").trim());
+
 export type RunOptions = {
-  sessionId: string; input: string; model?: string; provider?: string;
+  sessionId: string; input: TurnInput; model?: string; provider?: string;
   /** Idempotency-Key (1-255 visible ASCII). Reuse it to resume the same turn after a failure. */
   key: string;
   onAction: (a: TurnAction) => void;
@@ -76,7 +83,9 @@ export function followRun(t: RunTarget, o: RunOptions): RunHandle {
   };
 
   async function admit(): Promise<string> {
-    const body = JSON.stringify({ input: o.input, session_id: o.sessionId,
+    // Multimodal input goes as a one-message list; /v1/runs takes the last message's content as the turn.
+    const input = typeof o.input === "string" ? o.input : [{ role: "user", content: o.input }];
+    const body = JSON.stringify({ input, session_id: o.sessionId,
       ...(o.model ? { model: o.model } : {}), ...(o.provider ? { provider: o.provider } : {}) });
     for (let attempt = 0; ; attempt++) {
       try {

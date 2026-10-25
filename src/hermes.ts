@@ -21,7 +21,9 @@ export interface ChatClient {
   /** Sends one turn and streams the reply. `key` makes the send idempotent (reuse it to retry the
    *  same turn without storing the message twice). The handle aborts; `nudge` (if present) tells a
    *  reconnecting stream the app is back in the foreground. */
-  streamTurn(sessionId: string, input: string, onAction: OnAction, opts?: { key?: string }): StreamHandle;
+  streamTurn(sessionId: string, input: TurnInput, onAction: OnAction, opts?: { key?: string }): StreamHandle;
+  /** Add guidance to a run while it works (POST /v1/runs/{id}/steer). Rejects when the run no longer accepts it. */
+  steer(runId: string, text: string): Promise<void>;
   approve(runId: string, requestId: string, executionGeneration: number, choice: "once" | "deny"): Promise<unknown>;
   stop(runId: string): Promise<unknown>;
 }
@@ -31,7 +33,8 @@ export type StreamHandle = (() => void) & { nudge?: () => void };
 export type HermesTarget = HermesConfig & { profile?: string; model?: string; provider?: string };
 
 export { HermesError, toHermesError } from "./errors";
-import { followRun, newRunKey } from "./run-stream";
+import { followRun, newRunKey, type TurnInput } from "./run-stream";
+export type { ContentPart, TurnInput } from "./run-stream";
 import { HermesError, toHermesError } from "./errors";
 
 /** The id in a create/get-session response ({session:{id}}), tolerant of flatter shapes. */
@@ -132,7 +135,7 @@ export class HermesClient implements ChatClient {
 
   /** Sends one turn as a detached /v1/runs run and follows it, reconnecting through drops (see
    *  run-stream.ts for why). Falls back to the session stream on servers without the Runs API. */
-  streamTurn(sessionId: string, input: string, onAction: OnAction, opts: { key?: string } = {}): StreamHandle {
+  streamTurn(sessionId: string, input: TurnInput, onAction: OnAction, opts: { key?: string } = {}): StreamHandle {
     const base = this.cfg.baseUrl;
     if (HermesClient.noRunsApi.has(base)) return this.streamSession(sessionId, input, onAction);
     let legacy: (() => void) | null = null;
@@ -147,7 +150,7 @@ export class HermesClient implements ChatClient {
 
   /** Legacy: POST /api/sessions/{id}/chat/stream. The reply streams on the request itself, so a
    *  dropped connection interrupts the run server-side. Only used when /v1/runs is missing. */
-  streamSession(sessionId: string, input: string, onAction: OnAction): () => void {
+  streamSession(sessionId: string, input: TurnInput, onAction: OnAction): () => void {
     const ctrl = new AbortController();
     (async () => {
       try {
@@ -184,6 +187,10 @@ export class HermesClient implements ChatClient {
 
   stop(runId: string) {
     return this.json(`/v1/runs/${encodeURIComponent(runId)}/stop`, { method: "POST", body: {} });
+  }
+
+  async steer(runId: string, text: string) {
+    await this.json(`/v1/runs/${encodeURIComponent(runId)}/steer`, { method: "POST", body: { input: text } });
   }
 }
 
