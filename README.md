@@ -7,6 +7,8 @@ skills and memory, all against the Hermes you already run, on whatever host you 
 
 It talks to Hermes's own API server. Nothing goes through a third-party service, and there's no account to make.
 
+**Website:** <https://suryavamsi6.github.io/hermes-app/>
+
 > Status: early, personal project, **Android only** (v0.11.1). It's used daily against a real Hermes, but
 > expect rough edges. Issues and PRs welcome.
 
