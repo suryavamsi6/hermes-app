@@ -131,9 +131,10 @@ curl -H "Authorization: Bearer YOUR_KEY" https://your-host.example/v1/capabiliti
 
 ## 3. Install the app
 
-- **APK (v0.11.1):** <https://expo.dev/artifacts/eas/jqGZUM5fTiQYo_B7QxbXraDF9dCKrJtqmYOWzY9601E.apk>
-  (EAS build artifact; check [Releases](https://github.com/suryavamsi6/hermes-app/releases) for newer ones).
-  Download it on the phone and allow *Install unknown apps* for your browser or file manager.
+- **APK:** download `hermes-<version>.apk` from the latest release:
+  <https://github.com/suryavamsi6/hermes-app/releases/latest>
+  Open it on the phone and allow *Install unknown apps* for your browser or file manager. Updates install
+  over the previous version (same signing key).
 - Or build it yourself (below).
 
 ## 4. Connect
@@ -205,6 +206,20 @@ updates only install over an app signed with the same key. To build for an x86_6
 `-PreactNativeArchitectures=x86_64`. A full Gradle build is heavy (many GB of RAM); EAS is easier.
 
 Never commit keystores, `.env` files or keys; `.gitignore` already excludes them.
+
+## Releasing
+
+Releases are built by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)), not Expo's cloud:
+
+1. Bump `expo.version` and `expo.android.versionCode` in `app.json` (and `version` in `package.json`).
+2. Commit, then tag and push: `git tag v0.11.2 && git push origin main v0.11.2`.
+3. The workflow checks that the tag matches `app.json`, runs the typecheck and tests, runs
+   `expo prebuild` + Gradle, signs the APK with the release key, and publishes `hermes-<version>.apk`
+   to a GitHub Release with generated notes.
+
+Signing uses four repository secrets: `ANDROID_KEYSTORE_BASE64` (the keystore, base64), `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. In a fork, set your own. Every push and PR also runs
+[`ci.yml`](.github/workflows/ci.yml) (typecheck + tests).
 
 ## Hermes features: supported or not
 
