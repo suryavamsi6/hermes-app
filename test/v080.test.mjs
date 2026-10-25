@@ -36,8 +36,9 @@ test("rows are newest-first with one divider per day, none for undated history",
 });
 
 test("routines never show [object Object]: schedule objects, object prompts, nested results", () => {
+  const at = new Date(); at.setDate(at.getDate() + 1); at.setHours(8, 0, 0, 0); // 8 AM tomorrow in the runner's own zone
   const real = { id: "abc", name: "Morning brief", prompt: "Summarise my day", schedule: { kind: "cron", expr: "0 8 * * *", display: "0 8 * * *" },
-    schedule_display: "0 8 * * *", enabled: true, state: "scheduled", next_run_at: "2026-10-26T08:00:00+05:30", last_run_at: null, last_status: null,
+    schedule_display: "0 8 * * *", enabled: true, state: "scheduled", next_run_at: at.toISOString(), last_run_at: null, last_status: null,
     deliver: "origin", repeat: { times: null, completed: 3 } };
   const j = m.toJob(real);
   assert.strictEqual(j.schedule, "0 8 * * *");
