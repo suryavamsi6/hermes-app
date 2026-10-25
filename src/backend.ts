@@ -53,7 +53,7 @@ export type BridgeFeature = "createBot" | "editPersona" | "deleteBot" | "toggleT
 
 /** Thrown in live mode when a feature needs hermes-bridge and no bridge key is set. */
 export class ComingSoonError extends Error {
-  constructor(public feature: BridgeFeature) { super(`${feature} needs hermes-bridge on your homelab. Add its key in Settings.`); }
+  constructor(public feature: BridgeFeature) { super(`${feature} needs hermes-bridge on your Hermes server. Add its key in Settings.`); }
 }
 
 export interface Backend {

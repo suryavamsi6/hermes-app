@@ -7,7 +7,7 @@ const { DemoBackend } = await import("/tmp/hm-test/demo.js");
 test("demo roster has playful seeded bots with one Bot Chat each", async () => {
   const be = new DemoBackend();
   const bots = await be.listBots();
-  assert.deepStrictEqual(bots.map((b) => b.name), ["Hermes", "Pi Ops", "Market"]);
+  assert.deepStrictEqual(bots.map((b) => b.name), ["Atlas", "Forge", "Nova"]);
   const sid = await be.botChatSession(bots[1]);
   const msgs = await be.chat(bots[1]).messages(sid);
   assert.ok(msgs.messages.length >= 2);
@@ -51,10 +51,10 @@ test("demo chat streams steps then text, and approvals resolve locally", async (
 test("face personality is deterministic and differs between the seeded bots", async () => {
   execSync("npx -y esbuild@0.24.0 src/ui/face-personality.ts --format=esm --outfile=/tmp/hm-test/face.js --log-level=error");
   const { personality } = await import("/tmp/hm-test/face.js");
-  assert.deepStrictEqual(personality("pi-ops"), personality("pi-ops"));
-  const keys = ["hermes", "pi-ops", "market"].map((id) => JSON.stringify(personality(id)));
+  assert.deepStrictEqual(personality("forge"), personality("forge"));
+  const keys = ["atlas", "forge", "nova"].map((id) => JSON.stringify(personality(id)));
   assert.strictEqual(new Set(keys).size, 3);
-  for (const id of ["hermes", "pi-ops", "market", "x"]) {
+  for (const id of ["atlas", "forge", "nova", "x"]) {
     const p = personality(id);
     assert.ok(p.blinkMin >= 1800 && p.blinkMax <= 6000 && p.blinkMin < p.blinkMax);
   }
@@ -82,7 +82,7 @@ test("appearance persists: demo store keeps it, live keeps it on the phone per p
   const [hermes, piops, market] = await be.listBots();
   assert.strictEqual(new Set([hermes.shape, piops.shape, market.shape]).size, 3, "seeded bots get distinct shapes");
   await be.updateBot({ ...piops, shape: "ghost", color: "#7fe0b5", color2: undefined, eyes: "dot" });
-  const again = (await be.listBots()).find((b) => b.id === "pi-ops");
+  const again = (await be.listBots()).find((b) => b.id === "forge");
   assert.deepStrictEqual([again.shape, again.color, again.eyes], ["ghost", "#7fe0b5", "dot"]);
   const b2 = await be.createBot({ name: "Cloudy", emoji: "🌿", color: "#8cc8ff", color2: "#1d6670", shape: "cloud", eyes: "tall", description: "", persona: "", toolsets: [] });
   assert.deepStrictEqual([b2.shape, b2.color2, b2.eyes], ["cloud", "#1d6670", "tall"]);

@@ -47,9 +47,9 @@ export default function Settings() {
   }
   const explain = (msg: string) =>
     /^403\b/.test(msg) ? (f.cfClientId ? "Cloudflare Access refused (403). Check the Access client ID and secret, and that the app's policy is Service Auth with this token." : "The server refused the request (403). If it sits behind Cloudflare Access, fill in the Cloudflare Access section.")
-    : /^401\b/.test(msg) ? "Hermes refused the API key (401). Use the API_SERVER_KEY from the homelab."
+    : /^401\b/.test(msg) ? "Hermes refused the API key (401). Use the API_SERVER_KEY from your Hermes server."
     : /^404\b/.test(msg) ? "Reached a server, but not the Hermes API (404). Check the server URL."
-    : /network|fetch|failed to connect|unable to resolve/i.test(msg) ? `Can't reach the server (${msg}). Check the URL and that Funnel is on (tailscale funnel status on the homelab).`
+    : /network|fetch|failed to connect|unable to resolve/i.test(msg) ? `Can't reach the server (${msg}). Check the URL and that Funnel is on (tailscale funnel status on the server).`
     : msg;
   async function saveOnly() { const c = normalized(); await save(c); router.replace("/"); }
 
@@ -77,8 +77,8 @@ export default function Settings() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Logo /><Text style={type.title}>Connect to Hermes</Text></View>
           {config || demo ? <Pressable hitSlop={10} onPress={() => router.back()}><X size={22} color={colors.muted} /></Pressable> : null}
         </View>
-        <Text style={type.bodySm}>Your Hermes API server on the homelab, published with Tailscale Funnel. These values are kept in the phone's encrypted secure storage (Android Keystore) and only sent to this server.</Text>
-        {field("baseUrl", "Server URL", { url: true, placeholder: "https://homelab.your-tailnet.ts.net", hint: "On the server: tailscale funnel status" })}
+        <Text style={type.bodySm}>Your Hermes API server, published over HTTPS (Tailscale Funnel or a reverse proxy). These values are kept in the phone's encrypted secure storage (Android Keystore) and only sent to this server.</Text>
+        {field("baseUrl", "Server URL", { url: true, placeholder: "https://your-host.your-tailnet.ts.net", hint: "On the server: tailscale funnel status" })}
         {field("apiKey", "Hermes API key", { secret: true, placeholder: "API_SERVER_KEY", hint: "On the server: API_SERVER_KEY in ~/.hermes/.env" })}
         <Pressable onPress={() => setCfOpen((o) => !o)} accessibilityRole="button" accessibilityState={{ expanded: cfOpen }}
           accessibilityLabel="Cloudflare Access (optional)" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 }}>
@@ -98,7 +98,7 @@ export default function Settings() {
           <Text style={[type.label, { fontSize: 12, color: colors.dim }]}>With hermes-bridge on the server, every Hermes profile shows up here automatically, "New bot" creates a real profile, and MCP servers, plugins, routines, skills and memory settings work from the phone. Without it, add profiles by hand.</Text>
         </View>
         {field("bridgeKey", "Bridge key", { secret: true, placeholder: "Leave empty to skip", hint: "On the server: the key hermes-bridge was started with" })}
-        {f.bridgeKey?.trim() ? field("bridgeUrl", "Bridge URL", { url: true, placeholder: `${url(f.baseUrl) || "https://homelab.your-tailnet.ts.net"}/bridge`, hint: "Leave empty to use your server URL + /bridge" }) : null}
+        {f.bridgeKey?.trim() ? field("bridgeUrl", "Bridge URL", { url: true, placeholder: `${url(f.baseUrl) || "https://your-host.your-tailnet.ts.net"}/bridge`, hint: "Leave empty to use your server URL + /bridge" }) : null}
         <Pressable disabled={busy} onPress={testAndSave}
           style={{ backgroundColor: colors.action, borderRadius: radii.chip, paddingVertical: 14, alignItems: "center", opacity: busy ? 0.6 : 1 }}>
           <Text style={{ fontFamily: font.semibold, fontSize: 16, color: colors.actionForeground }}>{busy ? "Testing…" : "Test & save"}</Text>

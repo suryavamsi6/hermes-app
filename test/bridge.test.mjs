@@ -68,9 +68,9 @@ const keysSeparate = () => {
 test("Home lists every server profile; ones without a key on the phone need setup", { skip }, async () => {
   const be = new LiveBackend(cfg());
   const bots = await be.listBots();
-  assert.deepStrictEqual(bots.map((b) => [b.profile, Boolean(b.needsKey)]), [["default", false], ["jobwing", true]]);
+  assert.deepStrictEqual(bots.map((b) => [b.profile, Boolean(b.needsKey)]), [["default", false], ["scout", true]]);
   assert.strictEqual(bots[0].name, "Hermes");
-  assert.strictEqual(bots[1].name, "Jobwing");
+  assert.strictEqual(bots[1].name, "Scout");
   assert.strictEqual(be.notice(), null);
   assert.ok(be.supports("mcp") && be.supports("createBot") && !be.supports("deleteBot"));
   await assert.rejects(be.listSessions(bots[1]), /Set up chat/);
@@ -94,10 +94,10 @@ test("Add bot creates a real profile, keeps its new key, and chat uses it right 
 
 test("Set up chat gives an existing profile a key on this phone", { skip }, async () => {
   const be = new LiveBackend(cfg());
-  const jobwing = (await be.listBots()).find((b) => b.profile === "jobwing");
-  const ready = await be.setupChat(jobwing);
+  const scout = (await be.listBots()).find((b) => b.profile === "scout");
+  const ready = await be.setupChat(scout);
   assert.match(ready.apiKey, /^[0-9a-f]{64}$/);
-  assert.strictEqual((await be.listBots()).find((b) => b.profile === "jobwing").needsKey, false);
+  assert.strictEqual((await be.listBots()).find((b) => b.profile === "scout").needsKey, false);
   await be.listSessions(ready); // accepted by Hermes with the new key
   await assert.rejects(be.setupChat((await be.listBots())[0]), /main API_SERVER_KEY/); // default is server-managed
   keysSeparate();
@@ -105,12 +105,12 @@ test("Set up chat gives an existing profile a key on this phone", { skip }, asyn
 
 test("Plugins come with their tools; toggles only where Hermes allows, else the CLI command", { skip }, async () => {
   const be = new LiveBackend(cfg());
-  const [hermes, jobwing] = await be.listBots();
+  const [hermes, scout] = await be.listBots();
   const [p] = await be.listPlugins(hermes);
   assert.deepStrictEqual([p.name, p.enabled, p.tools, p.toggleHint], ["web-tools", true, ["fetch", "search"], undefined]);
-  const [q] = await be.listPlugins(jobwing);
-  assert.strictEqual(q.toggleHint, "hermes -p jobwing plugins disable web-tools");
-  await assert.rejects(be.setPluginEnabled(jobwing, "web-tools", false), /hermes -p jobwing plugins disable web-tools/);
+  const [q] = await be.listPlugins(scout);
+  assert.strictEqual(q.toggleHint, "hermes -p scout plugins disable web-tools");
+  await assert.rejects(be.setPluginEnabled(scout, "web-tools", false), /hermes -p scout plugins disable web-tools/);
   await be.setPluginEnabled(hermes, "web-tools", false);
   assert.strictEqual((await be.listPlugins(hermes))[0].enabled, false);
   keysSeparate();
@@ -118,23 +118,23 @@ test("Plugins come with their tools; toggles only where Hermes allows, else the 
 
 test("Routines, MCP, skills, toolsets and memory go through the bridge", { skip }, async () => {
   const be = new LiveBackend(cfg());
-  const [hermes, jobwing] = await be.listBots();
+  const [hermes, scout] = await be.listBots();
   const [job] = await be.listJobs(hermes);
   assert.deepStrictEqual([job.id, job.name, job.schedule, job.paused], ["j1", "Morning brief", "0 8 * * *", false]);
   await be.setJobPaused(hermes, "j1", true);
   await be.runJob(hermes, "j1");
   assert.ok(calls.some((c) => c.to === "bridge" && c.method === "POST" && c.path === "/bridge/v1/profiles/default/jobs/j1/pause"));
   assert.ok(calls.some((c) => c.to === "bridge" && c.path === "/bridge/v1/profiles/default/jobs/j1/trigger"));
-  assert.deepStrictEqual(await be.listJobs(jobwing), []); // works without a chat key
+  assert.deepStrictEqual(await be.listJobs(scout), []); // works without a chat key
 
   const [gh] = await be.listMcp(hermes);
   assert.deepStrictEqual([gh.name, gh.enabled, gh.hasAuth], ["github", true, true]);
-  await be.addMcp(jobwing, { name: "hub", url: "https://mcp.example/mcp", authHeader: "Bearer tok-secret-123" });
-  const hub = (await be.listMcp(jobwing)).find((s) => s.name === "hub");
+  await be.addMcp(scout, { name: "hub", url: "https://mcp.example/mcp", authHeader: "Bearer tok-secret-123" });
+  const hub = (await be.listMcp(scout)).find((s) => s.name === "hub");
   assert.ok(hub && hub.hasAuth && hub.url === "https://mcp.example/mcp");
-  await be.setMcpEnabled(jobwing, "hub", false);
-  await be.removeMcp(jobwing, "hub");
-  assert.deepStrictEqual(await be.listMcp(jobwing), []);
+  await be.setMcpEnabled(scout, "hub", false);
+  await be.removeMcp(scout, "hub");
+  assert.deepStrictEqual(await be.listMcp(scout), []);
   await be.restartGateway();
 
   assert.deepStrictEqual((await be.listSkills(hermes)).map((s) => [s.name, s.enabled]), [["web", true]]);

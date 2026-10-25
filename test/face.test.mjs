@@ -92,8 +92,8 @@ test("visible motion per mood: idle lives a little; each busy mood has its own l
 });
 
 test("idle rhythm: deterministic per bot, uneven, within calm bounds, and different between bots", () => {
-  const a = m.rhythm("hermes"), b = m.rhythm("pi-ops"), c = m.rhythm("market");
-  assert.deepStrictEqual(m.rhythm("hermes"), a);
+  const a = m.rhythm("atlas"), b = m.rhythm("forge"), c = m.rhythm("nova");
+  assert.deepStrictEqual(m.rhythm("atlas"), a);
   for (const r of [a, b, c]) {
     for (const g of r.blinks) assert.ok(g >= 2000 && g <= 7000, `blink gap ${g}`);
     assert.ok(new Set(r.blinks).size > 1, "blink gaps are uneven");
@@ -102,5 +102,5 @@ test("idle rhythm: deterministic per bot, uneven, within calm bounds, and differ
   }
   assert.notDeepStrictEqual(a.blinks, b.blinks);
   assert.notDeepStrictEqual(b.blinks, c.blinks);
-  assert.notStrictEqual(m.rhythm("hermes", undefined, 0.1).start, m.rhythm("hermes", undefined, 0.7).start, "per-mount phase desyncs identical bots");
+  assert.notStrictEqual(m.rhythm("atlas", undefined, 0.1).start, m.rhythm("atlas", undefined, 0.7).start, "per-mount phase desyncs identical bots");
 });

@@ -12,9 +12,9 @@ export type Session = { id: string; title: string; messages: Msg[] };
 export type MockFlavor = { ageMin?: number; sessions?: Session[]; reply?: (input: string) => string; tools?: { tool: string; preview: (input: string) => string; result: string }[] };
 
 const defaultSessions: Session[] = [
-  { id: "demo-pi", title: "Pi health check", messages: [
-    { role: "user", content: "How is the Pi doing?" },
-    { role: "assistant", content: "All good. **CPU** 7%, **RAM** 1.9 / 8 GB, disk 41% used. `tailscaled` and `hermes gateway` are both running." },
+  { id: "demo-server", title: "Server health check", messages: [
+    { role: "user", content: "How is the server doing?" },
+    { role: "assistant", content: "All good. **CPU** 7%, **RAM** 1.9 / 8 GB, disk 41% used. `nginx` and `hermes gateway` are both running." },
   ] },
   { id: "demo-markets", title: "Morning market brief", messages: [
     { role: "user", content: "Give me a quick market brief" },
@@ -28,13 +28,13 @@ const reply = (input: string) => `Here's what I found for **"${input.slice(0, 40
 | Service | Status | Uptime |
 |---|---|---|
 | hermes gateway | running | 3d 4h |
-| tailscaled | running | 3d 4h |
-| litellm | running | 12h |
+| nginx | running | 3d 4h |
+| postgres | running | 12h |
 
-To check it yourself on the Pi:
+To check it yourself on the server:
 
 \`\`\`bash
-systemctl status tailscaled --no-pager
+systemctl status nginx --no-pager
 curl -s http://127.0.0.1:8642/health
 \`\`\`
 
@@ -127,7 +127,7 @@ export class MockHermesClient implements ChatClient {
         } else {
           await sleep(800);
           emit({ type: "tool", phase: "completed", tool: "terminal", preview: "removed 37 files" });
-          await this.words("Done. I removed **37 old log archives** and freed **412 MB** on the Pi.\n\n| Before | After |\n|---|---|\n| 41% used | 36% used |", emit, () => cancelled);
+          await this.words("Done. I removed **37 old log archives** and freed **412 MB** on the server.\n\n| Before | After |\n|---|---|\n| 41% used | 36% used |", emit, () => cancelled);
         }
       } else {
         for (const t of this.tools) {

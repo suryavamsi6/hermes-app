@@ -10,7 +10,7 @@
 - Notice chips: "IMPORTANT:" / "SYSTEM:"-style prefixes dropped; Hermes process notices get a short
   title ("Background process finished", "…failed (exit 7)", "…stopped", "…still running"); the
   expanded body shows the command and its output as a code block.
-- Verified in the demo web export only (docs/polish/v0.11.1/); not yet on the phone.
+- Verified in the demo web export only (screenshots now in docs/screenshots/); not yet on the phone.
 
 ## v0.11.0 (versionCode 22): polish, personality and motion
 Shipped (evolution of the existing look: same palette, layouts, navigation, faces and backend):
@@ -36,8 +36,7 @@ Shipped (evolution of the existing look: same palette, layouts, navigation, face
   streaming replies no longer flash an unfinished `**`/`` ` `` opener.
 - **Screens**: Home skeleton, routine actions as 40 pt buttons with delete confirmation, MCP rows say
   On/Off and "token set" in words.
-- Screenshots: `docs/polish/before/` (v0.10.5), `docs/polish/after/`, `docs/polish/after-reduced-motion/`,
-  made with `docs/polish/shots.mjs` against the demo web export.
+- Screenshots: `docs/screenshots/` (current version only), made with `scripts/screenshots.mjs` against the demo web export.
 
 Not verified / left:
 - Web preview screenshots only for most screens; motion timing, haptics and the sheet exit were not
@@ -147,8 +146,7 @@ Not supported by Hermes, or left for later:
   repo, and `nixos-rebuild build --flake .#homelab` succeeds with the bridge enabled — the deploy
   is verified to build. What's left (needs the sudo password):
   `cd ~/Dotfiles/nixos-config && nixos-rebuild switch --flake .#homelab --target-host
-  surya@homelab.home.arpa --sudo` (SSH needs the 1Password agent:
-  `SSH_AUTH_SOCK=~/.1password/agent.sock`), then the checks in docs/hermes-bridge.md and testing
+  <user>@<homelab-host> --sudo` , then the checks in docs/hermes-bridge.md and testing
   the app's Plugins / MCP Marketplace tabs against the real Hermes.
 
 

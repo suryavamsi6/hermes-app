@@ -12,7 +12,7 @@ type BotData = { bot: Bot; client: MockHermesClient; jobs: Job[]; memory: Memory
 
 const TOOLSETS: Omit<Toolset, "enabled">[] = [
   { name: "web", label: "Web search", description: "Search and read the web" },
-  { name: "terminal", label: "Terminal", description: "Run shell commands on the homelab" },
+  { name: "terminal", label: "Terminal", description: "Run shell commands on the server" },
   { name: "browser", label: "Browser", description: "Drive a headless Chromium (browser_exec)" },
   { name: "computer_use", label: "Computer use", description: "Click and type in desktop apps (cua-driver)" },
   { name: "file", label: "Files", description: "Read and write files" },
@@ -21,7 +21,7 @@ const TOOLSETS: Omit<Toolset, "enabled">[] = [
 ];
 const SKILLS: Skill[] = [
   { name: "github-pr-workflow", description: "Open, review and merge pull requests", category: "dev" },
-  { name: "homelab-health", description: "Check Incus containers, disks and services", category: "ops" },
+  { name: "server-health", description: "Check containers, disks and services", category: "ops" },
   { name: "market-brief", description: "Summarise the markets, your watchlist and news", category: "finance" },
   { name: "obsidian-notes", description: "Read and append to your Obsidian vault", category: "notes" },
 ];
@@ -42,7 +42,7 @@ const MCP_CATALOG: Omit<McpCatalogEntry, "installed" | "enabled">[] = [
 ];
 
 function bot(id: string, name: string, emoji: string, color: string, description: string, persona: string, model: string, look: Partial<Bot> = {}): Bot {
-  return { id, profile: id === "hermes" ? "default" : id, name, emoji, color, description, persona, model, provider: "nous", ...look };
+  return { id, profile: id === "atlas" ? "default" : id, name, emoji, color, description, persona, model, provider: "nous", ...look };
 }
 const ts = (on: string[]) => TOOLSETS.map((t) => ({ ...t, enabled: on.includes(t.name) }));
 const plugins = (installed: string[], enabled: string[]) =>
@@ -51,13 +51,13 @@ const session = (id: string, messages: { role: "user" | "assistant"; content: st
 
 function seed(): BotData[] {
   const hermes: MockFlavor = { ageMin: 3,
-    sessions: session("chat-hermes", [
+    sessions: session("chat-atlas", [
       { role: "user", content: "Morning! Anything I should know today?" },
-      { role: "assistant", content: "Morning ☀️ Three things:\n\n1. Your **trip checklist** is due on Nov 6\n2. The headphones price check runs Nov 2\n3. I tidied your task inbox: 4 tasks moved to *This week*" },
+      { role: "assistant", content: "Morning ☀️ Three things:\n\n1. Your **dentist appointment** is Thursday at 10:00\n2. The library books are due Friday\n3. I tidied your task inbox: 4 tasks moved to *This week*" },
     ]),
   };
   const piOps: MockFlavor = { ageMin: 130,
-    sessions: session("chat-piops", [
+    sessions: session("chat-forge", [
       { role: "user", content: "How's the server?" },
       { role: "assistant", content: "All green 🟢 `proxy`, `database` and `media` are up. Disk is at **41%**. Want me to clean old logs?" },
     ]),
@@ -68,7 +68,7 @@ function seed(): BotData[] {
     reply: () => "Server report 🛠️\n\n| Container | State | IP |\n|---|---|---|\n| proxy | up | 172.18.0.2 |\n| database | up | 172.18.0.3 |\n| media | up | 172.18.0.4 |\n\n```bash\ndocker ps --format '{{.Names}}'\n```\n\nNothing needs you. I'll shout if anything goes red.",
   };
   const market: MockFlavor = { ageMin: 26 * 60,
-    sessions: session("chat-market", [
+    sessions: session("chat-nova", [
       { role: "user", content: "Quick market mood?" },
       { role: "assistant", content: "Cautiously optimistic 📈 the S&P 500 is up **0.4%**, tech is leading, and none of your watchlist moved more than 2%." },
     ]),
@@ -79,18 +79,18 @@ function seed(): BotData[] {
     reply: () => "Here's today's brief 📈\n\n| Index | Change |\n|---|---|\n| S&P 500 | +0.42% |\n| Dow Jones | -0.15% |\n| Nasdaq 100 | +1.10% |\n\n```text\nTop mover on your watchlist: ACME +1.8%\n```\n\n*Demo data, not real prices.*",
   };
   return [
-    { bot: bot("hermes", "Hermes", "🪽", "#2a3f5c", "Your main agent. Plans your day, keeps notes", "Warm, concise chief of staff.", "hermes-4-405b", { shape: "squircle", color: "#8c7bff", color2: "#1d2b4f" }),
-      client: new MockHermesClient(hermes), memory: { memory: "- Prefers 24-hour times\n- Weekday briefs at 7:53 AM\n- Keeps tasks in one inbox", user: "Name: Alex\nPhone: Android\nHome server: homelab" },
+    { bot: bot("atlas", "Atlas", "🧭", "#2a3f5c", "Your main agent. Plans your day, keeps notes", "Warm, concise chief of staff.", "hermes-4-405b", { shape: "squircle", color: "#8c7bff", color2: "#1d2b4f" }),
+      client: new MockHermesClient(hermes), memory: { memory: "- Prefers 24-hour times\n- Weekday briefs at 7:53 AM\n- Keeps tasks in one inbox", user: "Name: Alex\nPhone: Android\nHome server: a small Linux box" },
       jobs: [{ id: "j1", name: "Morning brief", schedule: "53 7 * * 1-5", prompt: "Summarise my calendar, tasks and inbox", paused: false, nextRun: "Mon 7:53 AM" }],
       mcp: [{ name: "tools-hub", url: "http://mcp.example.lan/mcp", enabled: true, hasAuth: true, tools: 55 }],
       toolsets: ts(["web", "terminal", "browser", "file", "memory", "cronjob"]), plugins: plugins(["hindsight", "kanban"], ["hindsight", "kanban"]) },
-    { bot: bot("pi-ops", "Pi Ops", "🛠️", "#1f5a42", "Keeps the home server healthy. Loves uptime", "Terse SRE. Asks before anything destructive.", "glm-5.3", { shape: "hexagon", eyes: "wide" }),
+    { bot: bot("forge", "Forge", "🛠️", "#1f5a42", "Keeps the home server healthy. Loves uptime", "Terse SRE. Asks before anything destructive.", "glm-5.3", { shape: "hexagon", eyes: "wide" }),
       client: new MockHermesClient(piOps), memory: { memory: "- server runs Docker\n- Tailscale Funnel serves <your-host>.ts.net", user: "Owner: Alex" },
       jobs: [{ id: "j2", name: "Nightly health check", schedule: "0 2 * * *", prompt: "Check containers, disk and certs", paused: false, nextRun: "Tonight 2:00 AM" },
         { id: "j3", name: "Weekly log cleanup", schedule: "0 4 * * 0", prompt: "Delete logs older than 30 days", paused: true }],
       mcp: [{ name: "docker", url: "http://127.0.0.1:8811/mcp", enabled: true, hasAuth: true, tools: 12 }],
       toolsets: ts(["terminal", "file", "cronjob"]), plugins: plugins(["camofox-browser"], []) },
-    { bot: bot("market", "Market", "📈", "#ffd66b", "Watches the markets and your watchlist", "Calm, numbers-first. Never gives buy/sell advice.", "deepseek-flash", { shape: "flower" }),
+    { bot: bot("nova", "Nova", "📈", "#ffd66b", "Watches the markets and your watchlist", "Calm, numbers-first. Never gives buy/sell advice.", "deepseek-flash", { shape: "flower" }),
       client: new MockHermesClient(market), memory: { memory: "- Tracks a 12-ticker watchlist\n- Prefers tables", user: "Investor: long-term" },
       jobs: [{ id: "j4", name: "Market close recap", schedule: "15 16 * * 1-5", prompt: "Recap the market close and my watchlist", paused: false, nextRun: "Mon 4:15 PM" }],
       mcp: [{ name: "portfolio", url: "http://mcp.example.lan/mcp/portfolio", enabled: true, hasAuth: true, tools: 22 },
@@ -120,9 +120,9 @@ export class DemoBackend implements Backend {
   async getPersona(b: Bot) { return this.get(b).bot.persona ?? ""; }
   async setPersona(b: Bot, text: string) { this.get(b).bot = { ...this.get(b).bot, persona: text }; }
   async updateBot(b: Bot) { this.get(b).bot = b; return b; }
-  async removeBot(id: string) { this.data = this.data.filter((d) => d.bot.id !== id || id === "hermes"); }
+  async removeBot(id: string) { this.data = this.data.filter((d) => d.bot.id !== id || id === "atlas"); }
   chat(b: Bot): ChatClient { return this.get(b).client; }
-  async botChatSession(b: Bot) { return `chat-${b.id === "pi-ops" ? "piops" : b.id}`; }
+  async botChatSession(b: Bot) { return `chat-${b.id}`; }
   async listSessions(b: Bot) {
     return [{ id: await this.botChatSession(b), title: BOT_CHAT_TITLE, updated: "now" },
       { id: `${b.id}-cron-1`, title: "Routine run · yesterday", updated: "yesterday" }, { id: `${b.id}-old`, title: "Older thread", updated: "last week" }];

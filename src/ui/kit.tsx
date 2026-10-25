@@ -168,7 +168,7 @@ export function ComingSoon({ what }: { what: string }) {
       <Sparkles size={18} color={colors.accentText} />
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={[type.body, { fontFamily: font.semibold, fontSize: 15 }]}>Needs hermes-bridge</Text>
-        <Text style={type.bodySm}>{what} needs hermes-bridge on your homelab (Hermes's chat API doesn't offer it). Add the bridge key in Settings, or try it in demo mode.</Text>
+        <Text style={type.bodySm}>{what} needs hermes-bridge on your Hermes server (Hermes's chat API doesn't offer it). Add the bridge key in Settings, or try it in demo mode.</Text>
       </View>
     </View>
   );

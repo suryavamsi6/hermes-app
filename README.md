@@ -10,15 +10,19 @@ It talks to Hermes's own API server. Nothing goes through a third-party service,
 > Status: early, personal project, **Android only** (v0.11.1). It's used daily against a real Hermes, but
 > expect rough edges. Issues and PRs welcome.
 
-| Home | Chat | Tool steps | Approval |
+| Home | Working | Tool steps | Approval |
 |---|---|---|---|
-| ![Home](docs/polish/after/01-home.png) | ![Chat](docs/polish/v0.11.1/03-chat-open.png) | ![Tool steps](docs/polish/v0.11.1/07-steps-expanded.png) | ![Approval](docs/polish/v0.11.1/10-approval.png) |
+| ![Home](docs/screenshots/home.webp) | ![Chat while working](docs/screenshots/chat-working.webp) | ![Tool steps](docs/screenshots/chat-tool-steps.webp) | ![Approval](docs/screenshots/approval.webp) |
 
-| Attach | Needs your OK | Routines | MCP servers |
+| Needs your OK | Attach | Faces | Routines |
 |---|---|---|---|
-| ![Attach](docs/polish/v0.11.1/08-attach-sheet.png) | ![Needs your OK](docs/polish/after/10b-home-needs-ok.png) | ![Routines](docs/polish/after/15-routines.png) | ![MCP](docs/polish/after/16-mcp.png) |
+| ![Needs your OK](docs/screenshots/home-needs-ok.webp) | ![Attach](docs/screenshots/attach-sheet.webp) | ![Faces](docs/screenshots/faces.webp) | ![Routines](docs/screenshots/routines.webp) |
 
-Screenshots come from the built-in demo mode (no server). More are in [`docs/polish/`](docs/polish/).
+| MCP servers | Bot settings | Settings |
+|---|---|---|
+| ![MCP](docs/screenshots/mcp.webp) | ![Bot settings](docs/screenshots/bot-settings.webp) | ![Settings](docs/screenshots/settings.webp) |
+
+Screenshots come from the built-in demo mode with sample bots (Atlas, Forge, Nova); no real server or data.
 
 ## Features
 
@@ -157,14 +161,15 @@ arrive while it's in the background. There's no push server: if you swipe the ap
 ## Demo mode
 
 No server needed. Tap **Try demo (no connection)** in Settings, or build with `EXPO_PUBLIC_DEMO=1`. Try:
-"delete old logs" in *Pi Ops* (an approval), "What can you do?" in *Hermes* (tool steps), creating a bot,
+"delete old logs" in *Forge* (an approval), "What can you do?" in *Atlas* (tool steps), creating a bot,
 adding an MCP server or a routine.
 
 The same demo runs in a browser, which is how the screenshots are made:
 
 ```bash
 EXPO_PUBLIC_DEMO=1 npx expo export --platform web --output-dir /tmp/hweb
-node dist/bench/static.mjs /tmp/hweb 8802        # then open http://localhost:8802
+node scripts/static.mjs /tmp/hweb 8802           # then open http://localhost:8802
+# README screenshots: scripts/screenshots.mjs (see its header)
 ```
 
 ## Build it yourself
@@ -253,7 +258,8 @@ Never commit keystores, `.env` files or keys; `.gitignore` already excludes them
 | `src/app-state.tsx`, `src/chat-model.ts`, `src/sse.ts` | State, stream reducer, SSE parser |
 | `src/ui/` | Theme, faces (`bot-face.tsx`, `face-state.ts`), motion tokens, composer, markdown, sheets |
 | `test/` | `npm test` (node:test); the bridge tests run against a hermes-bridge checkout next to this repo |
-| `docs/polish/` | Screenshot script and screenshots |
+| `docs/screenshots/` | README screenshots (current version, demo data) |
+| `scripts/` | Static server for the web demo, screenshot script |
 
 ## License
 

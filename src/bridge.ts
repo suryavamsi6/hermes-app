@@ -47,7 +47,7 @@ export class BridgeClient {
     if (!res.ok) {
       const code = j?.error?.code ?? j?.code ?? String(res.status);
       const msg = j?.error?.message ?? j?.message ?? (res.status === 404 && !j ? `No hermes-bridge at ${this.t.url}.` : `HTTP ${res.status}`);
-      throw new BridgeError(res.status, code, res.status === 401 && code === "unauthorized" ? "hermes-bridge refused the bridge key. Copy it again from the homelab." : msg);
+      throw new BridgeError(res.status, code, res.status === 401 && code === "unauthorized" ? "hermes-bridge refused the bridge key. Copy it again from your server." : msg);
     }
     return j as T;
   }

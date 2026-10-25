@@ -2,7 +2,7 @@
 import * as SecureStore from "./secure";
 
 export type HermesConfig = {
-  baseUrl: string;        // e.g. https://homelab.<tailnet>.ts.net (no trailing slash)
+  baseUrl: string;        // e.g. https://your-host.<tailnet>.ts.net (no trailing slash)
   apiKey: string;         // Hermes API_SERVER_KEY
   cfClientId: string;     // optional: Cloudflare Access service token Client ID ("" = not used)
   cfClientSecret: string; // optional: Cloudflare Access service token Client Secret

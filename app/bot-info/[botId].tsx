@@ -71,7 +71,7 @@ export default function BotInfo() {
       </Section>
       <Field label="Name" value={draft.name} onChangeText={(name) => setDraft({ ...draft, name })} />
       <Field label="Short description" value={draft.description} onChangeText={(description) => setDraft({ ...draft, description })} />
-      <Field label="Persona (SOUL.md)" multiline value={draft.persona ?? ""} editable={canPersona} placeholder={canPersona ? "How should this bot behave?" : soulLoading ? "Loading SOUL.md…" : "Edit SOUL.md on the homelab for now"}
+      <Field label="Persona (SOUL.md)" multiline value={draft.persona ?? ""} editable={canPersona} placeholder={canPersona ? "How should this bot behave?" : soulLoading ? "Loading SOUL.md…" : "Edit SOUL.md on the server for now"}
         onChangeText={(persona) => setDraft({ ...draft, persona })} />
       {soul.error ? <ErrorText error={soul.error} /> : null}
       {!canPersona && !soulLoading ? (backend.kind === "live"

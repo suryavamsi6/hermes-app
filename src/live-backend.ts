@@ -115,7 +115,7 @@ export class LiveBackend implements Backend {
   async getPersona(b: Bot) {
     try { return (await this.need("editPersona").soul(b.profile)).content ?? ""; }
     catch (e: any) {
-      if (e?.status === 404 && e?.code !== "unknown_profile") throw new Error("Update hermes-bridge on the homelab to see and edit SOUL.md here.");
+      if (e?.status === 404 && e?.code !== "unknown_profile") throw new Error("Update hermes-bridge on your server to see and edit SOUL.md here.");
       throw e;
     }
   }

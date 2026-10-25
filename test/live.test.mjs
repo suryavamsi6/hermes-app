@@ -10,7 +10,7 @@ const mem = new Map();
 globalThis.localStorage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
 const { LiveBackend } = await import("../node_modules/.cache/hm-live/live.js");
 
-const KEYS = { default: "main-key-0123456789", jobwing: "jobwing-key-0123456789" };
+const KEYS = { default: "main-key-0123456789", research: "research-key-0123456789" };
 let sessions, calls;
 function fakeHermes() {
   globalThis.fetch = async (url, init = {}) => {
@@ -100,14 +100,14 @@ test("stored session deleted on the server -> resolves again", async () => {
 });
 
 test("bug 2: profiles route through /p/<profile>/ with their own key; checkProfile explains failures", async () => {
-  sessions = { jobwing: [{ id: "jw", title: "Bot Chat" }] };
+  sessions = { research: [{ id: "jw", title: "Bot Chat" }] };
   const be = new LiveBackend(cfg);
-  await be.checkProfile("jobwing", KEYS.jobwing);
-  await assert.rejects(be.checkProfile("jobwing", KEYS.default), /isn't jobwing's key/);
-  await assert.rejects(be.checkProfile("ledger", "whatever"), /isn't serving a profile named "ledger"/);
-  const jw = await be.addExistingBot({ id: "jobwing", profile: "jobwing", name: "JobWing", emoji: "", color: "#000", description: "", apiKey: KEYS.jobwing });
+  await be.checkProfile("research", KEYS.research);
+  await assert.rejects(be.checkProfile("research", KEYS.default), /isn't research's key/);
+  await assert.rejects(be.checkProfile("finance", "whatever"), /isn't serving a profile named "finance"/);
+  const jw = await be.addExistingBot({ id: "research", profile: "research", name: "Research", emoji: "", color: "#000", description: "", apiKey: KEYS.research });
   calls = [];
   assert.strictEqual(await be.botChatSession(jw), "jw");
-  assert.ok(calls.every((c) => c.includes(" /p/jobwing/")), calls.join("\n"));
-  assert.deepStrictEqual((await be.listBots()).map((b) => b.profile), ["default", "jobwing"]);
+  assert.ok(calls.every((c) => c.includes(" /p/research/")), calls.join("\n"));
+  assert.deepStrictEqual((await be.listBots()).map((b) => b.profile), ["default", "research"]);
 });

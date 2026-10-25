@@ -57,16 +57,16 @@ export default function NewBotScreen() {
       {!canCreate ? (
         <Section title="Your Hermes profile" footer={"Hermes has no endpoint that lists profiles, so add each one by name. Its key is the API_SERVER_KEY in ~/.hermes/profiles/<name>/.env on your Hermes server; the main key isn't accepted for other profiles."}>
           <View style={{ padding: 12, gap: 12 }}>
-            <Field label="Profile name" placeholder="jobwing" autoCapitalize="none" value={profile} onChangeText={setProfile} />
+            <Field label="Profile name" placeholder="research" autoCapitalize="none" value={profile} onChangeText={setProfile} />
             <Field label="That profile's API_SERVER_KEY" secureTextEntry autoCapitalize="none" value={key} onChangeText={setKey} />
-            <Field label="Display name (optional)" placeholder={profile.trim() ? profile.trim().replace(/^./, (c) => c.toUpperCase()) : "JobWing"} value={b.name} onChangeText={(name) => setB({ ...b, name })} />
+            <Field label="Display name (optional)" placeholder={profile.trim() ? profile.trim().replace(/^./, (c) => c.toUpperCase()) : "Research"} value={b.name} onChangeText={(name) => setB({ ...b, name })} />
             <Button title={busy ? "Checking…" : `Check & add ${profileId || "profile"}`} disabled={!profileId || !key.trim() || busy} onPress={() => void addExisting()} />
             <ErrorText error={error} />
           </View>
         </Section>
       ) : null}
       {canCreate ? <>
-      <Field label="Name" placeholder="e.g. Chef, Scout, Ledger" value={b.name} onChangeText={(name) => setB({ ...b, name })} />
+      <Field label="Name" placeholder="e.g. Chef, Scout, Atlas" value={b.name} onChangeText={(name) => setB({ ...b, name })} />
       {backend.kind === "live" ? <Field label="Hermes profile id" placeholder={profileIdFrom(b.name) || "chef"} autoCapitalize="none" autoCorrect={false}
         value={b.profile ?? ""} onChangeText={(profile) => setB({ ...b, profile })} /> : null}
       <Field label="One-line description" placeholder="What is this bot for?" value={b.description} onChangeText={(description) => setB({ ...b, description })} />

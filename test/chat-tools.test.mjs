@@ -34,18 +34,18 @@ test("findMatches: case-insensitive, counts repeats, needs 2+ chars, oldest firs
 test("chatToMarkdown: turns, stamps, photos, steers and failures; skips unfinished empty replies", () => {
   const now = new Date(2026, 9, 25, 13, 5).getTime();
   const at = new Date(2026, 9, 25, 9).getTime();
-  const md = m.chatToMarkdown("Pi Ops", [
+  const md = m.chatToMarkdown("Forge", [
     { id: "u1", role: "user", text: "clean the logs", at },
     { id: "u2", role: "user", text: "", images: ["/local/1.jpg", "/local/2.jpg"], at },
     a({ id: "a2", text: "done", status: "completed", steers: ["also check disks"], at }),
     a({ id: "a3", text: "", status: "streaming" }), // skipped: nothing to show
     a({ id: "a4", text: "half", status: "failed", error: "x" }),
   ], now);
-  assert.match(md, /^# Chat with Pi Ops\n/);
+  assert.match(md, /^# Chat with Forge\n/);
   assert.match(md, /_Exported 2026-10-25 13:05_/);
   assert.match(md, /## You · 2026-10-25 09:00\n\nclean the logs/);
   assert.match(md, /_\[2 photos\]_/);
-  assert.match(md, /## Pi Ops · 2026-10-25 09:00\n\n> Added while answering: also check disks\n\ndone/);
+  assert.match(md, /## Forge · 2026-10-25 09:00\n\n> Added while answering: also check disks\n\ndone/);
   assert.ok(!md.includes("streaming"));
   assert.match(md, /half\n\n_\(failed\)_/);
   assert.ok(md.endsWith("\n"));

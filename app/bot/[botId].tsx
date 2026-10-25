@@ -39,8 +39,8 @@ import { useLoad } from "../../src/use-load";
 
 const SUGGESTIONS: Record<string, string[]> = {
   default: ["What can you do?", "Plan my day", "Remember that I prefer 24-hour times"],
-  "pi-ops": ["How's the homelab?", "Clean up old logs", "Any containers down?"],
-  market: ["Market mood today?", "How are my holdings?", "Explain today's move"],
+  forge: ["How's the server?", "Clean up old logs", "Any containers down?"],
+  nova: ["Market mood today?", "How are my holdings?", "Explain today's move"],
 };
 
 type RowProps = { turn: Turn; bot: Bot; isLast: boolean; time?: string; fresh?: boolean; highlight?: string; onLong: (t: Turn) => void; onQuote: (t: Turn) => void; onRetry: (id: string) => void };

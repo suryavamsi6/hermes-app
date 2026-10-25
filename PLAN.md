@@ -35,8 +35,8 @@
 - The bridge marketplace deploy is **build-verified**: the hermes-bridge module + homelab host
   wiring are staged in `~/Dotfiles/nixos-config`, and `nixos-rebuild build --flake .#homelab`
   succeeds with `services.hermesBridge.enable = true`. Not switched yet (remote sudo needs a
-  password). SSH to the homelab works via the 1Password agent:
-  `SSH_AUTH_SOCK=~/.1password/agent.sock ssh surya@homelab.home.arpa`.
+  password). SSH to the homelab:
+  `ssh <user>@<homelab-host>`.
 - The app is linked to Expo/EAS (project baa598c3-3119-4985-8bb1-927c10370602, projectId +
   owner in app.json), and the 25 official Expo/EAS agent skills are installed in
   `.agents/skills/`.
@@ -44,7 +44,7 @@
 ## Next steps, in order
 1. Install and smoke-test on the S25 (see above for which APK first; `adb install -r`).
 2. Deploy the bridge: `cd ~/Dotfiles/nixos-config && nixos-rebuild switch --flake .#homelab
-   --target-host surya@homelab.home.arpa --sudo` (needs the sudo password; the closure is already
+   --target-host <user>@<homelab-host> --sudo` (needs the sudo password; the closure is already
    built locally), then check per docs/hermes-bridge.md and test the plugin/MCP marketplace tabs
    against the real Hermes.
 3. Add share-to-Hermes (`expo-share-intent`) — needs a prebuild; keep it out of patch releases.
