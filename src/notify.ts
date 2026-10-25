@@ -42,7 +42,7 @@ export const notifyDone = (bot: Bot, text: string) =>
 
 export const notifyApproval = (bot: Bot, turnId: string, a: Approval) =>
   post({ title: `${bot.name} needs your OK`, body: [a.title, a.detail].filter(Boolean).join(": ").slice(0, 220),
-    data: { botId: bot.id, turnId, approval: true } }, `approval-${bot.id}-${turnId}`);
+    categoryIdentifier: APPROVAL, data: { botId: bot.id, turnId, approval: true } }, `approval-${bot.id}-${turnId}`);
 
 export type NotificationTap = { botId: string; turnId?: string; choice?: "once" | "deny" };
 

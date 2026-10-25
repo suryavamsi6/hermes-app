@@ -1,24 +1,45 @@
-# TODO (paused at 0.9.0-dev)
+# TODO (after the Oct 25, 2026 session)
 
-Work stopped early to save usage. Remaining items, roughly in priority order.
+## Needs a device (S25)
+- The emulator smoke test (x86_64 build of the same v0.9.1 JS, Android 15) passed: install/launch,
+  setup screen, demo mode, deep links, chat, the "…" menu, search (counter/prev-next/highlight),
+  long-press menu with Read aloud + Edit & resend, editing banner + prefilled draft, swipe-to-quote,
+  and the Plugins Marketplace + MCP Catalog tabs. Still wanted on the S25: the arm64 `dist/` APKs,
+  the notification shade (approval buttons, tap-to-open), and the marketplace tabs against the real
+  Hermes once the bridge is deployed.
+- `dist/` has both `hermes-v0.9.0-vc12.apk` and `hermes-v0.9.1-vc13.apk`; both are signed with the
+  key in `keys/` and install over the live v0.8.0. Install v0.9.0 first if you want to test it in
+  isolation (no downgrades after v0.9.1 without losing app data), or go straight to v0.9.1.
 
-## Enhancements: started, not finished
-- **Approve from a notification.** `src/notify.ts` posts "needs your OK" notifications while the app is backgrounded. The Allow once / Deny buttons are disabled: `categoryIdentifier` was removed until `onNotificationTap()` is wired into `app/_layout.tsx` (call `approve(bot, turnId, choice)`, open `/bot/<id>` on tap).
-- **"Reply ready" notification.** Posted by `notifyDone`; tapping it only opens the app, with no routing to the chat yet. Untested on a device.
-- **Message menu.** Add "Read aloud" (`expo-speech` is installed) and "Edit & resend" (`editableLast()` in `src/chat-tools.ts`; the composer already has `editing` / `onCancelEdit` props). Hermes's HTTP API has no rewind or edit route, so an edit goes as a new message.
+## Done in code this session — in the v0.9.1 APK
+- Notification taps: `onNotificationTap` wired in `app/_layout.tsx` (answers approvals in the
+  background, plain taps open `/bot/<id>`, including the notification that cold-launched the app);
+  approval `categoryIdentifier` re-enabled in `src/notify.ts`; a chat's notifications are cleared
+  when you open it.
+- Message menu: "Read aloud" (expo-speech, toggles) and "Edit & resend" (`editableLast`, composer
+  editing banner; sends as a new message).
+- "…" header menu: Search in chat (match counter, prev/next, `Markdown`/`MarkedText` highlight),
+  Model picker (`listModels` + `updateBot`, like bot-info), Export as Markdown (`chatToMarkdown`
+  via the share sheet), Bot settings.
+- Swipe a bubble left to quote it (PanResponder, no new native deps).
+- Unit tests for `src/chat-tools.ts` (test/chat-tools.test.mjs, in `npm test`).
 
-## Enhancements: not started
-- Search within a chat (`findMatches()` exists in `src/chat-tools.ts`; Markdown needs a `highlight` prop).
-- A per-chat model picker in the chat header (bot-info already has one; use `listModels` + `updateBot`).
-- Export chat as Markdown from a header menu (`chatToMarkdown()` exists).
-- Swipe to reply (quote).
-- Share-to-Hermes from other apps (`expo-share-intent` 9.x supports Expo 58; it was removed before the build to keep it safe).
-- Unit tests for `src/chat-tools.ts`.
-- Skipped on purpose: home-screen widget / quick tile (heavy native work), new chat/clear (breaks Bot Chat sync).
+## Still open
+- Share-to-Hermes from other apps (`expo-share-intent` 9.x supports Expo 58; left out on purpose —
+  it needs a native module and therefore a prebuild).
+- Skipped on purpose: home-screen widget / quick tile (heavy native work), new chat/clear (breaks
+  Bot Chat sync).
 
 ## Marketplace
-- The app's Plugins / MCP screens have Marketplace and Catalog tabs (`app/plugins/[botId].tsx`, `app/mcp/[botId].tsx`). They haven't been tested against a real dashboard.
-- Bridge endpoints `GET/POST /v1/profiles/<p>/plugin-catalog[/install]` are in hermes-bridge (commit bff36ed). The server running Hermes needs the new bridge deployed before the tabs work live.
-
-## Release
-- Build the v0.9.0 APK (version and versionCode 12 are already set in app.json). New native modules: expo-image-picker, expo-image-manipulator, expo-notifications, expo-speech, expo-speech-recognition. Run `npx expo prebuild -p android --clean`, restore the signing keystore, then `./gradlew assembleRelease`.
+- The app's Plugins/MCP screens with their Marketplace/Catalog tabs are UI-verified on an
+  emulator (demo mode). Bridge endpoints `GET/POST /v1/profiles/<p>/plugin-catalog[/install]` are
+  verified (bridge's 20 unittest tests pass) and vendored unchanged in
+  `~/Dotfiles/nixos-config/modules/hosts/hermes-bridge/hermes_bridge/` — identical to
+  `~/Projects/hermes-bridge/src`.
+- The module **and** the homelab host wiring (`nixos-homelab.nix`) are now staged in the Dotfiles
+  repo, and `nixos-rebuild build --flake .#homelab` succeeds with the bridge enabled — the deploy
+  is verified to build. What's left (needs the sudo password):
+  `cd ~/Dotfiles/nixos-config && nixos-rebuild switch --flake .#homelab --target-host
+  surya@homelab.home.arpa --sudo` (SSH needs the 1Password agent:
+  `SSH_AUTH_SOCK=~/.1password/agent.sock`), then the checks in docs/hermes-bridge.md and testing
+  the app's Plugins / MCP Marketplace tabs against the real Hermes.

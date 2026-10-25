@@ -30,3 +30,4 @@ credentials.json
 # misc
 .DS_Store
 *.log
+keys/

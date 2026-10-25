@@ -1,6 +1,8 @@
-// Long-press a message: tapback reactions, when it was sent, and Copy / Share / Quote / Retry.
+// Long-press a message: tapback reactions, when it was sent, and Copy / Share / Quote / Read aloud /
+// Edit & resend / Retry.
 import * as Clipboard from "expo-clipboard";
-import { Copy, MessageSquareQuote, RefreshCw, RotateCcw, Share2 } from "lucide-react-native";
+import * as Speech from "expo-speech";
+import { Copy, MessageSquareQuote, Pencil, RefreshCw, RotateCcw, Share2, Volume2 } from "lucide-react-native";
 import { Pressable, Share, Text, View } from "react-native";
 import type { Turn } from "../chat-model";
 import { messageTime } from "./chat-rows";
@@ -11,6 +13,8 @@ import { colors, type } from "./theme";
 export type MessageMenuActions = {
   react: (emoji: string | null) => void;
   quote: () => void;
+  /** The last user message, when nothing is running after it: put its text back in the composer. */
+  edit?: () => void;
   /** A failed or stopped reply: run it again in place. */
   retry?: () => void;
   /** The latest finished reply: ask the same question again. */
@@ -24,6 +28,12 @@ export const quoteOf = (text: string) =>
 export function MessageMenu({ turn, reaction, onClose, actions }: { turn: Turn | null; reaction?: string; onClose: () => void; actions: MessageMenuActions }) {
   const icon = (I: typeof Copy) => <I size={20} color={colors.textSecondary} />;
   const run = (f?: () => void) => () => { onClose(); f?.(); };
+  const readAloud = run(() => {
+    const text = turn?.text;
+    if (!text) return;
+    // Toggle: pressing again stops whatever is being read.
+    void Speech.isSpeakingAsync().then((speaking) => { if (speaking) Speech.stop(); else Speech.speak(text); }).catch(() => Speech.speak(text));
+  });
   return (
     <Sheet visible={!!turn} onClose={onClose}>
       {turn ? <>
@@ -39,6 +49,8 @@ export function MessageMenu({ turn, reaction, onClose, actions }: { turn: Turn |
         {turn.text ? <SheetRow icon={icon(Copy)} label="Copy" onPress={run(() => void Clipboard.setStringAsync(turn.text))} /> : null}
         {turn.text ? <SheetRow icon={icon(Share2)} label="Share" onPress={run(() => void Share.share({ message: turn.text }).catch(() => {}))} /> : null}
         {turn.text ? <SheetRow icon={icon(MessageSquareQuote)} label="Quote in reply" onPress={run(actions.quote)} /> : null}
+        {turn.text ? <SheetRow icon={icon(Volume2)} label="Read aloud" onPress={readAloud} /> : null}
+        {actions.edit ? <SheetRow icon={icon(Pencil)} label="Edit & resend" onPress={run(actions.edit)} /> : null}
         {actions.retry ? <SheetRow icon={icon(RotateCcw)} label="Retry" onPress={run(actions.retry)} /> : null}
         {actions.askAgain ? <SheetRow icon={icon(RefreshCw)} label="Ask again" onPress={run(actions.askAgain)} /> : null}
       </> : null}

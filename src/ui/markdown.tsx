@@ -106,3 +106,8 @@ export const Markdown = memo(function Markdown({ text, highlight }: { text: stri
   const ctx = { highlight };
   return <View style={{ gap: 10 }}>{tree.map((b, i) => render(b, String(i), ctx))}</View>;
 });
+
+/** Plain text with search matches marked (user bubbles; replies use Markdown's own highlight). */
+export function MarkedText({ text, highlight }: { text: string; highlight?: string }) {
+  return <Text style={type.chat}>{marked(text, "m", { highlight })}</Text>;
+}
