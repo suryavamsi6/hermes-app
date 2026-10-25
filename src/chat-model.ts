@@ -15,8 +15,18 @@ export type AssistantTurn = {
   key?: string;
   /** The user message this turn answers (for Retry / Regenerate). */
   prompt?: string;
+  /** Images sent with the prompt (data: URLs), so a Retry sends them again. */
+  attachments?: string[];
+  /** Text the user added while the reply was being written (POST /v1/runs/{id}/steer). */
+  steers?: string[];
+  /** Added text Hermes never got to before the run ended (offered as a new message). */
+  pendingSteer?: string;
 };
-export type UserTurn = { id: string; role: "user"; text: string; at?: number };
+export type UserTurn = { id: string; role: "user"; text: string; at?: number;
+  /** Local image URIs shown in the bubble (this phone only). */
+  images?: string[];
+  /** Images in a message loaded from history (Hermes returns them without their bytes). */
+  imageCount?: number };
 export type Turn = UserTurn | AssistantTurn;
 
 export type TurnAction =
@@ -26,7 +36,7 @@ export type TurnAction =
   | { type: "approval"; approval: Approval }
   | { type: "run"; runId: string }
   | { type: "reconnecting" } | { type: "reconnected" }
-  | { type: "done"; status: Exclude<TurnStatus, "streaming">; error?: string; code?: string };
+  | { type: "done"; status: Exclude<TurnStatus, "streaming">; error?: string; code?: string; pendingSteer?: string };
 
 export const initialTurn = (id: string): AssistantTurn => ({ id, role: "assistant", text: "", steps: [], status: "streaming" });
 
@@ -57,7 +67,7 @@ export function reduce(t: AssistantTurn, a: TurnAction): AssistantTurn {
     }
     case "done":
       if (t.status !== "streaming") return t; // first terminal event wins (error is followed by done/run.failed)
-      return { ...t, status: a.status, error: a.error, errorCode: a.code, approval: undefined, reconnecting: false,
+      return { ...t, status: a.status, error: a.error, errorCode: a.code, approval: undefined, reconnecting: false, ...(a.pendingSteer ? { pendingSteer: a.pendingSteer } : {}),
         steps: t.steps.map((s) => (s.status === "running" ? { ...s, status: a.status === "completed" ? "completed" : "failed" } : s)) };
   }
 }
@@ -87,7 +97,7 @@ export function toAction(event: string, raw: string): TurnAction[] {
   } else if (/^run\.(completed|failed|cancelled)$/.test(event)) {
     // /v1/runs: run.completed carries the final `output` (authoritative over the streamed deltas).
     if (event === "run.completed" && s("output")) out.push({ type: "final", text: s("output")! });
-    out.push({ type: "done", status: event.slice(4) as any, error: s("error", "turn_exit_reason") });
+    out.push({ type: "done", status: event.slice(4) as any, error: s("error", "turn_exit_reason"), ...(s("pending_steer") ? { pendingSteer: s("pending_steer") } : {}) });
   } else if (event === "run.interrupted") out.push({ type: "done", status: "failed", error: s("error", "reason") ?? "the run was interrupted", code: "interrupted" });
   else if (event === "run.queued") out.push({ type: "done", status: "queued" });
   else if (event === "error") out.push({ type: "done", status: "failed", error: s("message", "error") ?? "the run failed", code: s("code") });
@@ -95,12 +105,18 @@ export function toAction(event: string, raw: string): TurnAction[] {
 }
 
 /** Hermes /messages rows -> plain user/assistant text with optional ms timestamps. */
-export function parseMessages(r: any): { role: "user" | "assistant"; text: string; at?: number }[] {
+export type HistoryMessage = { role: "user" | "assistant"; text: string; at?: number; images?: number };
+export function parseMessages(r: any): HistoryMessage[] {
   const list: any[] = Array.isArray(r) ? r : r?.messages ?? r?.data ?? [];
   return list
     .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
-    .map((m) => ({ role: m.role, text: typeof m.content === "string" ? m.content : (m.content as any[]).map((p) => p.text ?? "").join(""), at: toMs(m.timestamp ?? m.created_at) }))
-    .filter((m) => m.text);
+    .map((m) => {
+      const parts: any[] = typeof m.content === "string" ? [] : Array.isArray(m.content) ? m.content : [];
+      const images = parts.filter((p) => p && (p.type === "image_url" || p.type === "input_image" || p.type === "image")).length;
+      const text = typeof m.content === "string" ? m.content : parts.map((p) => p?.text ?? "").join("");
+      return { role: m.role, text, at: toMs(m.timestamp ?? m.created_at), ...(images ? { images } : {}) };
+    })
+    .filter((m) => m.text || m.images);
 }
 /** Hermes stores message timestamps as unix seconds (float); accept ms or ISO too. */
 function toMs(v: unknown): number | undefined {

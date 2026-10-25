@@ -23,6 +23,10 @@ export type BridgeJob = { id: string; name?: string; prompt?: string; schedule?:
 export type BridgeSkill = { name: string; description?: string; category?: string; enabled?: boolean; provenance?: string };
 export type BridgeToolset = { name: string; label?: string; description?: string; enabled?: boolean; configured?: boolean; tools?: string[] };
 export type BridgePlugin = { name: string; version?: string | null; description: string; source?: string | null; runtime_status?: string | null; enabled: boolean; auth_required: boolean; tools: string[] };
+export type BridgeCatalogPlugin = { name: string; title?: string | null; description?: string | null; maintainer?: string | null; tier?: string | null;
+  category?: string | null; version?: string | null; installed?: boolean; update_available?: boolean; requires_env?: string[]; provides_tools?: string[] };
+export type BridgeMcpCatalogEntry = { name: string; description?: string; transport?: string; auth_type?: string;
+  required_env?: { name: string; prompt?: string; required?: boolean }[]; installed?: boolean; enabled?: boolean; command?: string | null; url?: string | null };
 export type BridgeMemory = { active: string; providers: { name: string; description: string; available: boolean; configured: boolean; status?: string }[]; builtin_files: { memory?: number; user?: number } };
 
 const enc = encodeURIComponent;
@@ -76,6 +80,11 @@ export class BridgeClient {
 
   plugins(profile: string) { return this.req<{ plugins: BridgePlugin[]; toggle_supported: boolean }>("GET", this.p(profile, "/plugins")); }
   pluginAction(profile: string, name: string, action: "enable" | "disable") { return this.req("POST", this.p(profile, `/plugins/${enc(name)}/${action}`), {}); }
+
+  pluginCatalog(profile: string) { return this.req<{ entries: BridgeCatalogPlugin[]; install_supported: boolean }>("GET", this.p(profile, "/plugin-catalog")); }
+  installCatalogPlugin(profile: string, name: string) { return this.req<{ ok?: boolean; consent_required?: boolean; error?: string }>("POST", this.p(profile, "/plugin-catalog/install"), { name }); }
+  async mcpCatalog(profile: string) { return (await this.req<{ entries: BridgeMcpCatalogEntry[] }>("GET", this.p(profile, "/mcp-catalog"))).entries ?? []; }
+  installMcpCatalog(profile: string, name: string, env: Record<string, string>) { return this.req("POST", this.p(profile, "/mcp-catalog/install"), { name, env, enable: true }); }
 
   memory(profile: string) { return this.req<BridgeMemory>("GET", this.p(profile, "/memory")); }
 }

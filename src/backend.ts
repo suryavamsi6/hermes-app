@@ -37,6 +37,14 @@ export type Plugin = { name: string; kind: PluginKind; description: string; vers
 /** Memory as hermes-bridge reports it: the active provider and the built-in files' sizes (not their text). */
 export type MemoryStatus = { active: string; providers: { name: string; description: string; available: boolean; configured: boolean; status?: string }[]; files: { memory: number; user: number } };
 export type ModelOption = { id: string; provider?: string; label: string };
+/** One entry of Hermes's curated plugin marketplace (dashboard /api/dashboard/plugins/catalog). */
+export type CatalogPlugin = { name: string; title: string; description: string; maintainer?: string; tier?: string; category?: string;
+  version?: string; installed: boolean; updateAvailable: boolean; requiresEnv: string[]; tools: string[] };
+/** installSupported is false for profiles other than the one the dashboard runs as (Hermes's limit). */
+export type PluginCatalog = { entries: CatalogPlugin[]; installSupported: boolean };
+/** One entry of Hermes's approved MCP catalog (dashboard /api/mcp/catalog). */
+export type McpCatalogEntry = { name: string; description: string; transport: string; authType: string;
+  requiredEnv: { name: string; prompt?: string; required: boolean }[]; installed: boolean; enabled: boolean; command?: string; url?: string };
 export type SessionInfo = { id: string; title: string; updated?: string };
 
 /** Live mode needs hermes-bridge for these (editPersona/deleteBot stay server-side even with it). */
@@ -92,6 +100,12 @@ export interface Backend {
   removeMcp(b: Bot, name: string): Promise<void>;
   listPlugins(b: Bot): Promise<Plugin[]>;
   installPlugin(b: Bot, name: string): Promise<void>;
+  /** Hermes's plugin marketplace with installed state (live: needs hermes-bridge 0.2+). */
+  listPluginCatalog?(b: Bot): Promise<PluginCatalog>;
+  /** Hermes's MCP catalog with installed/enabled state for this bot's profile. */
+  listMcpCatalog?(b: Bot): Promise<McpCatalogEntry[]>;
+  /** Install a catalog MCP; `env` holds the values for the variables the entry declares. */
+  installMcpCatalog?(b: Bot, name: string, env: Record<string, string>): Promise<void>;
   setPluginEnabled(b: Bot, name: string, enabled: boolean): Promise<void>;
 }
 

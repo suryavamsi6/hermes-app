@@ -1,7 +1,7 @@
 // Offline demo: three playful seeded bots, each with its own Bot Chat, routines, skills, toolsets,
 // memory, MCP servers and plugins. Everything is in memory; no network calls.
 import {
-  type Backend, BOT_CHAT_TITLE, type Bot, type Job, type McpServer, type Memory, type NewBot, type Plugin, type Skill, type Toolset,
+  type Backend, BOT_CHAT_TITLE, type Bot, type Job, type McpCatalogEntry, type McpServer, type Memory, type NewBot, type Plugin, type PluginCatalog, type Skill, type Toolset,
 } from "./backend";
 import type { ChatClient } from "./hermes";
 import { MockHermesClient, type MockFlavor } from "./mock-hermes";
@@ -31,6 +31,14 @@ const PLUGIN_CATALOG: Omit<Plugin, "installed" | "enabled">[] = [
   { name: "hindsight", kind: "memory-provider", version: "2.1.0", description: "Long-term memory with recall across chats", tools: ["hindsight_recall"], skills: [] },
   { name: "kanban", kind: "tools", version: "1.0.4", description: "A task board your bots can share", tools: ["kanban_add", "kanban_move"], skills: ["kanban-orchestrator"] },
   { name: "weather", kind: "tools", version: "0.2.0", description: "Forecasts for any city", tools: ["get_weather"], skills: [] },
+];
+
+const MCP_CATALOG: Omit<McpCatalogEntry, "installed" | "enabled">[] = [
+  { name: "time", description: "Current time and timezone conversion", transport: "stdio", authType: "none", requiredEnv: [], command: "uvx mcp-server-time" },
+  { name: "fetch", description: "Fetch a web page and return it as Markdown", transport: "stdio", authType: "none", requiredEnv: [], command: "uvx mcp-server-fetch" },
+  { name: "github", description: "Issues, pull requests and code search on GitHub", transport: "http", authType: "env",
+    requiredEnv: [{ name: "GITHUB_PERSONAL_ACCESS_TOKEN", prompt: "A GitHub token with repo scope", required: true }], url: "https://api.githubcopilot.com/mcp/" },
+  { name: "linear", description: "Read and update Linear issues", transport: "http", authType: "oauth", requiredEnv: [], url: "https://mcp.linear.app/mcp" },
 ];
 
 function bot(id: string, name: string, emoji: string, color: string, description: string, persona: string, model: string, look: Partial<Bot> = {}): Bot {
@@ -140,7 +148,27 @@ export class DemoBackend implements Backend {
   }
   async setMcpEnabled(b: Bot, name: string, enabled: boolean) { const s = this.get(b).mcp.find((x) => x.name === name); if (s) s.enabled = enabled; }
   async removeMcp(b: Bot, name: string) { const d = this.get(b); d.mcp = d.mcp.filter((x) => x.name !== name); }
-  async listPlugins(b: Bot) { return this.get(b).plugins; }
+  async listPlugins(b: Bot) { return this.get(b).plugins.filter((p) => p.installed); }
+  async listPluginCatalog(b: Bot): Promise<PluginCatalog> {
+    await sleep(300);
+    const mine = this.get(b).plugins;
+    return { installSupported: true, entries: PLUGIN_CATALOG.map((p) => ({ name: p.name, title: p.name.replace(/(^|-)(\w)/g, (_, d, c) => `${d ? " " : ""}${c.toUpperCase()}`),
+      description: p.description, maintainer: "community", tier: p.name === "hindsight" || p.name === "weather" ? "official" : "community", category: p.kind, version: p.version,
+      installed: Boolean(mine.find((x) => x.name === p.name)?.installed), updateAvailable: p.name === "kanban", requiresEnv: p.name === "weather" ? ["OPENWEATHER_API_KEY"] : [], tools: p.tools })) };
+  }
+  async listMcpCatalog(b: Bot): Promise<McpCatalogEntry[]> {
+    await sleep(300);
+    const have = new Set(this.get(b).mcp.map((m) => m.name));
+    return MCP_CATALOG.map((e) => ({ ...e, installed: have.has(e.name), enabled: have.has(e.name) }));
+  }
+  async installMcpCatalog(b: Bot, name: string, env: Record<string, string>) {
+    await sleep(700);
+    const e = MCP_CATALOG.find((x) => x.name === name);
+    if (!e) throw new Error(`No catalog entry '${name}'`);
+    const missing = e.requiredEnv.filter((v) => v.required && !env[v.name]?.trim()).map((v) => v.name);
+    if (missing.length) throw new Error(`Fill in ${missing.join(", ")}`);
+    this.get(b).mcp.push({ name, url: e.url ?? e.command ?? "", enabled: true, hasAuth: e.requiredEnv.length > 0, tools: 4 + (name.length % 7) });
+  }
   async installPlugin(b: Bot, name: string) { await sleep(700); const p = this.get(b).plugins.find((x) => x.name === name); if (p) { p.installed = true; p.enabled = true; } }
   async setPluginEnabled(b: Bot, name: string, enabled: boolean) { const p = this.get(b).plugins.find((x) => x.name === name); if (p) p.enabled = enabled; }
 }
