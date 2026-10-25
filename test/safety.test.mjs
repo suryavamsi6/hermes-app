@@ -70,6 +70,19 @@ test("process notices get a short whole-word title; IMPORTANT-style prefixes are
   assert.equal(parseNotice(`[IMPORTANT: Watch disabled for proc_2 after too many matches]\n\n${FOOTER}`).title, "Watch disabled for proc_2 after too many matches");
 });
 
+test("a bot-to-bot delivery notice shows the reply itself, titled by who replied", () => {
+  const reply = JSON.stringify({ reply: "All clear \u2014 the payment landed.\n\n- \u2705 **HDFC \u20b911,047 PAID.**", status: "settled", delivery_id: "304c" });
+  const raw = `[IMPORTANT: Background process proc_c0009c562e50 completed normally (exit code 0).\nCommand: /x/python3 /x/tools/bot_mode_dm.py --run-delivery --author '{"id":"bot:ledger","name":"ledger","is_bot":true}' query-file /x/dm.txt --profile-home /x /x/bin/hermes -p default\nOutput:\n${reply}\n]\n\n${FOOTER}`;
+  const n = parseNotice(raw);
+  assert.equal(n.title, "Reply from Hermes");
+  assert.match(n.body, /^All clear — the payment landed\./);
+  assert.match(n.body, /₹11,047 PAID/);
+  assert.ok(!/delivery_id|Command:|\\u|IMPORTANT/.test(n.body), n.body);
+  // Output that is JSON without a message stays verbatim; a failed delivery keeps its failure title.
+  const failed = parseNotice(raw.replace("completed normally (exit code 0)", "exited (exit code 2)"));
+  assert.equal(failed.title, "Background process failed (exit 2)");
+});
+
 test("escapes: decoded when text clearly arrived double-encoded, code fences left alone", () => {
   assert.equal(decodeEscapes("a\\nb \\u2014 c \\\"q\\\""), 'a\nb — c "q"');
   assert.equal(tidyEscapes("Pay \\u20b9500 today"), "Pay ₹500 today");

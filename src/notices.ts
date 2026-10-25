@@ -75,13 +75,34 @@ export function parseNotice(raw: string): Notice {
     if (found.length) { lead = text.slice(0, start).trim(); body = found.join("\n\n"); }
     break;
   }
+  // A bot-to-bot delivery (tools/bot_mode_dm.py --run-delivery) prints {"reply": …} as its output:
+  // that reply is the message, so show it as markdown under "Reply from <profile>".
+  let from = "";
+  if (proc) {
+    const inner = text.replace(/^\[([\s\S]*)\]$/, "$1");
+    const out = /\nOutput:\n([\s\S]*)$/.exec(inner)?.[1]?.trim();
+    if (out && /^[[{]/.test(out)) {
+      try {
+        const found: string[] = [];
+        textsIn(JSON.parse(out), found);
+        if (found.length) {
+          body = found.join("\n\n");
+          const cmd = /\nCommand: ([^\n]*)/.exec(inner)?.[1] ?? "";
+          if (/bot_mode_dm\.py\b[^\n]*--run-delivery/.test(cmd)) {
+            const p = / -p (\S+)/.exec(cmd)?.[1];
+            from = p && p !== "default" ? p.charAt(0).toUpperCase() + p.slice(1) : "Hermes";
+          }
+        }
+      } catch { /* not JSON: shown verbatim below */ }
+    }
+  }
   if (!body) {
     body = decodeEscapes(text).replace(/^\[([\s\S]*)\]$/, "$1").replace(PREFIX, "");
     // A process's output is verbatim terminal text: show it as a code block, not markdown.
     body = body.replace(/\nOutput:\n([\s\S]*\S[\s\S]*)$/, (all, out: string) => (out.includes("```") ? all : `\n\nOutput:\n\`\`\`\n${out.replace(/\s+$/, "")}\n\`\`\``));
   }
   const raw0 = decodeEscapes(lead).split("\n").map((l) => l.replace(/^\[|\]$/g, "").replace(PREFIX, "").trim()).find((l) => l && !/^[[{]/.test(l));
-  const head = raw0 ? summarizeHead(raw0) : raw0;
+  const head = from && /completed normally|exit code 0\b/i.test(raw0 ?? "") ? `Reply from ${from}` : raw0 ? summarizeHead(raw0) : raw0;
   const title = (head && head.length <= 90 ? head : head ? `${head.slice(0, 87)}…` : "") || (/deliver|routine|cron|job/i.test(text) ? "Background update delivered" : "Background update");
   return { title, body: body.trim() };
 }
