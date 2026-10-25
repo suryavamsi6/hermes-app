@@ -15,6 +15,7 @@ import type { Bot } from "../../src/backend";
 import type { AssistantTurn, Turn, UserTurn } from "../../src/chat-model";
 import type { Attachment, FileAttachment } from "../../src/attach";
 import { ChatFollow } from "../../src/chat-follow";
+import { catalog as slashCatalog, explain, resolveSlash, skillDisplay, skillMessage } from "../../src/slash";
 import { pieces, scrollsSideways } from "../../src/text-safety";
 import { canSteer as steerable, chatToMarkdown, editableLast, findMatches, runningTurn } from "../../src/chat-tools";
 import { clearBotNotifications } from "../../src/notify";
@@ -143,7 +144,10 @@ function piece(i: number, n: number, pad: number) {
     borderTopLeftRadius: i === 0 ? r : 0, borderTopRightRadius: i === 0 ? r : 0, borderBottomLeftRadius: i === n - 1 ? r : 0, borderBottomRightRadius: i === n - 1 ? r : 0 } as const;
 }
 
-function UserRow({ t, time, reaction, longPress, unreact, quote, highlight }: { t: UserTurn; time?: string; reaction?: string; longPress: () => void; unreact: () => void; quote: () => void; highlight?: string }) {
+function UserRow({ t: raw, time, reaction, longPress, unreact, quote, highlight }: { t: UserTurn; time?: string; reaction?: string; longPress: () => void; unreact: () => void; quote: () => void; highlight?: string }) {
+  // A skill command's turn shows as the command you typed ("/name ..."), not Hermes's skill scaffold.
+  const shown = raw.text ? skillDisplay(raw.text) : null;
+  const t = shown ? { ...raw, text: shown } : raw;
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
       <SwipeQuote onQuote={quote} style={{ maxWidth: "82%" }}>
@@ -287,7 +291,7 @@ const AWAY = 320; // px scrolled up from the newest message before the jump butt
 export default function BotChatScreen() {
   const { botId } = useLocalSearchParams<{ botId: string }>();
   const bot = useBot(botId);
-  const { loadChat, send, steer, retry, syncChat, stop, setActive, react, bots, backend, reloadBots } = useApp();
+  const { loadChat, send, steer, retry, syncChat, stop, approve, setActive, react, bots, backend, reloadBots } = useApp();
   const insets = useSafeAreaInsets();
   const [composerH, setComposerH] = useState(76);
   const list = useRef<FlatList<ChatRow>>(null);
@@ -381,6 +385,52 @@ export default function BotChatScreen() {
   }, [bot, steer, toLatest]);
   const onStop = useCallback(() => { if (bot) stop(bot); }, [bot, stop]);
 
+  // Slash commands (src/slash.ts): Hermes's API server doesn't run them, so the app does.
+  const skills = useLoad(bot && backend && !bot.needsKey ? () => backend.listSkills(bot).catch(() => []) : null, [bot?.id, backend]);
+  const commands = useMemo(() => slashCatalog(skills.data ?? []), [skills.data]);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 10000); return () => clearTimeout(t); }, [note]);
+  const [modelQuery, setModelQuery] = useState("");
+  const onSlash = (text: string, images: Attachment[], files: FileAttachment[]): "sent" | "done" | "kept" | false => {
+    if (!bot) return false;
+    const a = resolveSlash(text, skills.data ?? []);
+    if (!a) return false;
+    setNote(null);
+    const running = runningTurn(turns);
+    switch (a.type) {
+      case "help": setTimeout(() => setDraftText(bot.id, "/"), 0); return "done";
+      case "status": {
+        const where = backend?.kind === "demo" ? "demo mode" : backend?.supports("mcp") ? "API server + bridge" : "API server";
+        setNote(`${bot.name} · profile ${bot.profile} · model ${bot.model ?? "profile default"}${bot.provider ? ` (${bot.provider})` : ""} · ${where}${busy ? " · working" : ""}`);
+        return "done";
+      }
+      case "stop": if (busy) stop(bot); else setNote("Nothing is running."); return "done";
+      case "retry":
+        if (busy) setNote("Wait for this reply to finish, or /stop it first.");
+        else if (lastAssistant?.prompt) void retry(bot, lastAssistant.id);
+        else setNote("Nothing to run again yet.");
+        return "done";
+      case "steer":
+        if (running && steerable(running)) void onSteer(a.text); else setNote("Nothing is running. Send it as a normal message instead.");
+        return "done";
+      case "approve":
+        if (lastAssistant?.approval && lastAssistant.status === "streaming") void approve(bot, lastAssistant.id, a.choice);
+        else setNote("Nothing is waiting for your OK.");
+        return "done";
+      case "model": setModelQuery(a.query); setModelSheet(true); return "done";
+      case "search": startSearch(); return "done";
+      case "export": exportChat(); return "done";
+      case "open": {
+        const to = { settings: `/bot-info/${bot.id}`, skills: `/bot-info/${bot.id}`, mcp: `/mcp/${bot.id}`, plugins: `/plugins/${bot.id}`, memory: `/memory/${bot.id}`,
+          routines: `/routines?bot=${bot.id}`, topics: `/history/${bot.id}`, activity: `/activity/${bot.id}`, call: `/call/${bot.id}` }[a.screen];
+        router.push(to as any);
+        return "done";
+      }
+      case "skill": onSend(skillMessage(a.name, a.arg), images, files); return "sent";
+      default: setNote(explain(a)); return "kept";
+    }
+  };
+
   useEffect(() => {
     if (!bot) return;
     void restoreDraft(bot.id);
@@ -431,8 +481,16 @@ export default function BotChatScreen() {
         <View onLayout={(e) => { const h = Math.round(e.nativeEvent.layout.height); if (Math.abs(h - composerH) > 1) setComposerH(h); }}
           style={{ position: "absolute", left: 0, right: 0, bottom: 0, paddingTop: 10, paddingBottom: insets.bottom, display: bot.needsKey ? "none" : "flex" }}>
           <Scrim side="bottom" style={{ top: 0, bottom: 0 }} />
+          {note ? (
+            <View accessibilityLiveRegion="polite" style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, marginHorizontal: 14, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10,
+              borderRadius: radii.card, backgroundColor: colors.floating, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={[type.bodySm, { flex: 1, color: colors.textSecondary }]}>{note}</Text>
+              <Pressable accessibilityLabel="Dismiss" hitSlop={10} onPress={() => setNote(null)}><X size={15} color={colors.muted} /></Pressable>
+            </View>
+          ) : null}
           <Composer botId={bot.id} busy={busy} placeholder={`Ask ${bot.name}`} onSend={onSend} onStop={onStop}
-            onSteer={onSteer} canSteer={steerable(runningTurn(turns))} editing={!!editing} onCancelEdit={() => setEditing(null)} />
+            onSteer={onSteer} canSteer={steerable(runningTurn(turns))} editing={!!editing} onCancelEdit={() => setEditing(null)}
+            commands={commands} onSlash={onSlash} />
         </View>
       </KeyboardAvoidingView>
       <Header bot={bot} top={insets.top} onMenu={() => setChatMenu(true)} />
@@ -453,8 +511,8 @@ export default function BotChatScreen() {
         <SheetRow icon={<Blocks size={20} color={colors.text} />} label="Plugins" onPress={() => { setChatMenu(false); router.push(`/plugins/${bot.id}`); }} />
         <SheetRow icon={<Settings2 size={20} color={colors.text} />} label="Bot settings" onPress={() => { setChatMenu(false); router.push(`/bot-info/${bot.id}`); }} />
       </Sheet>
-      <Sheet visible={modelSheet} onClose={() => setModelSheet(false)}>
-        <ModelPicker models={models.data} loading={models.loading} error={models.error} selected={bot.model} selectedProvider={bot.provider}
+      <Sheet visible={modelSheet} onClose={() => { setModelSheet(false); setModelQuery(""); }}>
+        <ModelPicker key={modelQuery} initialQuery={modelQuery} models={models.data} loading={models.loading} error={models.error} selected={bot.model} selectedProvider={bot.provider}
           onPick={(id, provider) => void pickModel(id, provider)} footer="Sent with each message, so it applies right away." />
       </Sheet>
     </View>

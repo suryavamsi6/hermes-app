@@ -1,6 +1,7 @@
 // Pure helpers behind the chat screen's search, export, edit-and-resend and photo sending.
 import type { AssistantTurn, Turn } from "./chat-model";
 import type { ContentPart, TurnInput } from "./run-stream";
+import { skillDisplay } from "./slash";
 
 /** The run input for a message: plain text, or (with photos) text plus image parts. Hermes takes
  *  images as data: URLs (gateway/platforms/api_server.py _normalize_multimodal_content). */
@@ -46,7 +47,7 @@ export function chatToMarkdown(botName: string, turns: Turn[], now = Date.now())
       const photos = t.images?.length ?? t.imageCount ?? 0;
       lines.push(`## You${stamp(t.at)}`, "");
       if (photos) lines.push(`_[${photos === 1 ? "1 photo" : `${photos} photos`}]_`, "");
-      if (t.text) lines.push(t.text, "");
+      if (t.text) lines.push(skillDisplay(t.text) ?? t.text, "");
     } else {
       if (!t.text && t.status !== "completed") continue;
       lines.push(`## ${botName}${stamp(t.at)}`, "");

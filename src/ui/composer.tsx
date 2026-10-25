@@ -7,6 +7,8 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput
 import { setDraftText, setListening, useDraft } from "../app-state";
 import { type Attachment, type FileAttachment, MAX_ATTACHMENTS, MAX_FILES, pickFiles, pickImages, setAttachments, setFileAttachments, useAttachments, useFileAttachments } from "../attach";
 import { Sheet } from "./sheet";
+import { SlashPicker } from "./slash-picker";
+import { filterCommands, pickerQuery, type SlashCommand } from "../slash";
 import { useDictation } from "./dictation";
 import { tapHaptic } from "./haptics";
 import Reanimated, { Easing, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
@@ -24,10 +26,15 @@ type Props = {
   placeholder?: string;
   /** Shown above the pill while editing a sent message. */
   editing?: boolean; onCancelEdit?: () => void;
+  /** Commands for the "/" picker. */
+  commands?: SlashCommand[];
+  /** Runs a typed "/command". "sent": it used the attachments too; "done": clear the text, keep them;
+   *  "kept": handled, leave everything (to fix the command); false: not a command, send as text. */
+  onSlash?: (text: string, images: Attachment[], files: FileAttachment[]) => "sent" | "done" | "kept" | false;
 };
 
 /** The text is the bot's draft (kept per bot, across restarts), so only this component re-renders while typing. */
-export const Composer = memo(function Composer({ botId, busy, onSend, onStop, onSteer, canSteer, placeholder = "Ask Hermes", editing, onCancelEdit }: Props) {
+export const Composer = memo(function Composer({ botId, busy, onSend, onStop, onSteer, canSteer, placeholder = "Ask Hermes", editing, onCancelEdit, commands, onSlash }: Props) {
   const text = useDraft(botId);
   const images = useAttachments(botId);
   const files = useFileAttachments(botId);
@@ -63,20 +70,39 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
     finally { setWorking(false); }
   };
   const choose = (f: () => Promise<void>) => { setMenu(false); setTimeout(() => void f(), 250); };
+  const clearAll = () => { setText(""); setAttachments(botId, () => []); setFileAttachments(botId, () => []); };
+  // A "/command" runs instead of being sent or steered ("//text" sends "/text").
+  const slash = (t: string) => {
+    const r = onSlash?.(t, images, files);
+    if (r === "sent") clearAll(); else if (r === "done") setText("");
+    return !!r;
+  };
+  const query = commands ? pickerQuery(text) : null;
+  const picks = query !== null && commands ? filterCommands(commands, query) : [];
+  const pick = (c: SlashCommand) => {
+    tapHaptic();
+    if (c.args && (!c.optional || c.kind === "skill")) setText(`/${c.name} `);
+    else slash(`/${c.name}`);
+  };
   const press = async () => {
+    const typed = text.trim();
+    // Send with the picker open and a partial name ("/sta") takes the highlighted first row.
+    if (picks.length && !picks.some((c) => c.name === query?.toLowerCase())) return pick(picks[0]);
+    if (typed.startsWith("/") && !typed.startsWith("//")) { tapHaptic(); if (slash(typed)) return; }
     if (mode === "stop") return onStop();
     tapHaptic();
     if (mode === "steer") {
-      const t = text.trim(); setText("");
+      const t = typed.startsWith("//") ? typed.slice(1) : typed; setText("");
       if (!(await onSteer?.(t))) setText(t);
       return;
     }
     if (!canSend) return;
-    onSend(text.trim(), images, files); setText(""); setAttachments(botId, () => []); setFileAttachments(botId, () => []);
+    onSend(typed.startsWith("//") ? typed.slice(1) : typed, images, files); clearAll();
   };
 
   return (
     <View style={{ paddingHorizontal: 12, paddingBottom: 8, gap: 6 }}>
+      {picks.length ? <SlashPicker items={picks} onPick={pick} /> : null}
       {editing ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 6 }}>
           <Text style={[type.bodySm, { color: colors.accentText, flex: 1 }]}>Editing. Sends as a new message; Hermes keeps the original.</Text>

@@ -18,6 +18,7 @@ import { createStore, useStore } from "./store";
 import { faceMood, type FaceMood } from "./ui/face-state";
 import { activityLine } from "./ui/activity";
 import type { ApprovalChoice } from "./chat-model";
+import { skillDisplay } from "./slash";
 
 const BUILD_DEMO = process.env.EXPO_PUBLIC_DEMO === "1";
 const DEMO_KEY = "hermes.demo";
@@ -107,7 +108,7 @@ export const toTurns = (history: HistoryMessage[]): Turn[] => {
 };
 const plain = (md: string) => md.replace(/[#*_`>|-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 /** Home's one-line preview of a history message. */
-const previewOf = (m: HistoryMessage) => (m.role === "user" && isGatewayNotice(m.text) ? parseNotice(m.text).title : plain(tidyEscapes(splitFiles(m.text).text) || "📎 File"));
+const previewOf = (m: HistoryMessage) => (m.role === "user" && skillDisplay(m.text) ? skillDisplay(m.text)! : m.role === "user" && isGatewayNotice(m.text) ? parseNotice(m.text).title : plain(tidyEscapes(splitFiles(m.text).text) || "📎 File"));
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
