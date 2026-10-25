@@ -97,7 +97,7 @@ test("live activity line: running tool, thinking summary, approval, fallback; no
   assert.strictEqual(m.activityLine({ ...base, steps: [{ id: "0", tool: "terminal", status: "running", preview: "git status" }] }), "Running git status");
   assert.strictEqual(m.activityLine({ ...base, steps: [{ id: "0", tool: "read_file", status: "running", preview: "/srv/app/main.py" }] }), "Reading main.py");
   assert.strictEqual(m.activityLine({ ...base, steps: [{ id: "0", tool: "web_search", status: "completed" }] }), "Putting it together");
-  assert.strictEqual(m.toolPhrase("mcp_github_list_issues"), "Using github");
+  assert.strictEqual(m.toolPhrase("mcp_github_list_issues"), "Asking github");
   assert.strictEqual(m.activityLine({ ...base, approval: { requestId: "r", generation: 0, title: "x" } }), "Waiting for your OK");
   assert.strictEqual(m.activityLine({ ...base, text: "Hi" }), null);
   assert.strictEqual(m.activityLine({ ...base, status: "completed" }), null);

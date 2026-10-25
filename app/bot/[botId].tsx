@@ -14,12 +14,14 @@ import { moodLabel, turnMood } from "../../src/ui/face-state";
 import type { Bot } from "../../src/backend";
 import type { AssistantTurn, Turn, UserTurn } from "../../src/chat-model";
 import type { Attachment, FileAttachment } from "../../src/attach";
+import { ChatFollow } from "../../src/chat-follow";
+import { pieces } from "../../src/text-safety";
 import { canSteer as steerable, chatToMarkdown, editableLast, findMatches, runningTurn } from "../../src/chat-tools";
 import { clearBotNotifications } from "../../src/notify";
 import { ApprovalCard } from "../../src/ui/approval-card";
 import { buildRows, chatBody, type ChatRow } from "../../src/ui/chat-rows";
 import { Composer } from "../../src/ui/composer";
-import { activityLine } from "../../src/ui/activity";
+import { activityLine, idleKind } from "../../src/ui/activity";
 import { Avatar, Chip, TapFace } from "../../src/ui/kit";
 import { ActivityRow } from "../../src/ui/activity-row";
 import { ModelPicker } from "../../src/ui/model-picker";
@@ -101,15 +103,18 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highligh
   return (
     <Rise play={fresh} style={{ gap: 8, alignItems: "flex-start" }}>
       {t.steps.length ? <View style={{ paddingLeft: 4 }}><StepsRow steps={t.steps} /></View> : null}
-      {activity ? <ActivityRow bot={bot} mood={turnMood(t)} text={showStatus ? activity : "Working"} /> : null}
+      {activity ? <ActivityRow bot={bot} mood={turnMood(t)} text={showStatus ? activity : "Working"} idle={showStatus ? idleKind(t) : null} /> : null}
       {t.approval ? <Rise scale={0.96}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} onEdit={(d) => setDraftText(bot.id, `Don't run that. Instead:\n${d}`)} /></Rise> : null}
       {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>↪ You added: {s}</Text>) : null}
       {t.text ? (
         <SwipeQuote onQuote={() => onQuote(turn)} style={{ maxWidth: "94%" }}>
-          <Pressable onLongPress={longPress} delayLongPress={300}
-            style={{ backgroundColor: colors.botBubble, borderRadius: radii.bubble, borderTopLeftRadius: isLast ? 8 : radii.bubble, paddingHorizontal: 18, paddingVertical: 14 }}>
-            <Markdown text={t.text} highlight={highlight} streaming={t.status === "streaming"} />
-          </Pressable>
+          {/* A long reply is a stack of pieces that read as one card (never one giant view, see pieces()). */}
+          <Markdown text={t.text} highlight={highlight} streaming={t.status === "streaming"} wrap={(c, i, n) => (
+            <Pressable onLongPress={longPress} delayLongPress={300}
+              style={[piece(i, n, 14), { backgroundColor: colors.botBubble }, i === 0 ? { borderTopLeftRadius: isLast ? 8 : radii.bubble } : null]}>
+              {c}
+            </Pressable>
+          )} />
         </SwipeQuote>
       ) : null}
       {reaction ? <ReactionBadge emoji={reaction} align="flex-start" onPress={() => react(turn.id, null)} /> : null}
@@ -129,12 +134,22 @@ function RetryPill({ onPress }: { onPress: () => void }) {
   );
 }
 
+/** One piece of a bubble: rounded only on its outer ends, seams padded like a paragraph gap. */
+function piece(i: number, n: number, pad: number) {
+  const r = radii.bubble;
+  return { paddingHorizontal: 18, paddingTop: i === 0 ? pad : 5, paddingBottom: i === n - 1 ? pad : 5,
+    borderTopLeftRadius: i === 0 ? r : 0, borderTopRightRadius: i === 0 ? r : 0, borderBottomLeftRadius: i === n - 1 ? r : 0, borderBottomRightRadius: i === n - 1 ? r : 0 } as const;
+}
+
 function UserRow({ t, time, reaction, longPress, unreact, quote, highlight }: { t: UserTurn; time?: string; reaction?: string; longPress: () => void; unreact: () => void; quote: () => void; highlight?: string }) {
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
       <SwipeQuote onQuote={quote} style={{ maxWidth: "82%" }}>
-        <Pressable onLongPress={longPress} delayLongPress={300}
-          style={{ backgroundColor: colors.userBubble, borderRadius: radii.bubble, borderTopRightRadius: 8, paddingHorizontal: 18, paddingVertical: 12 }}>
+        {/* Long messages are a stack of pieces that read as one bubble (never one giant view, see pieces()). */}
+        {(t.text ? pieces(t.text) : [""]).map((p, i, all) => (
+          <Pressable key={i} onLongPress={longPress} delayLongPress={300}
+            style={[piece(i, all.length, 12), { backgroundColor: colors.userBubble }, i === 0 ? { borderTopRightRadius: 8 } : null]}>
+            {i === 0 ? <>
           {t.images?.length ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: t.text ? 8 : 0 }}>
               {t.images.map((u) => <Image key={u} source={{ uri: u }} resizeMethod="resize" style={{ width: 120, height: 120, borderRadius: radii.inset }} />)}
@@ -150,8 +165,10 @@ function UserRow({ t, time, reaction, longPress, unreact, quote, highlight }: { 
               ))}
             </View>
           ) : null}
-          {t.text ? <MarkedText text={t.text} highlight={highlight} /> : null}
-        </Pressable>
+            </> : null}
+            {p ? <MarkedText text={p} highlight={highlight} /> : null}
+          </Pressable>
+        ))}
       </SwipeQuote>
       {reaction ? <ReactionBadge emoji={reaction} align="flex-end" onPress={unreact} /> : null}
       {time ? <Text style={[type.label, { paddingRight: 6, fontSize: 12, color: colors.dim }]}>{time}</Text> : null}
@@ -334,22 +351,32 @@ export default function BotChatScreen() {
   const seen = useRef(progress);
   if (!away) seen.current = progress;
   const unseen = away ? Math.max(0, progress - seen.current) : 0;
+  const jump = useCallback(() => list.current?.scrollToOffset({ offset: 0, animated: true }), []);
+  // Your own sends always scroll to the newest message; arriving rows and tokens only follow while you're
+  // at the bottom (see src/chat-follow.ts). The second scroll waits a frame so the new row has laid out.
+  const follow = useRef<ChatFollow | null>(null);
+  if (!follow.current) follow.current = new ChatFollow(() => requestAnimationFrame(() => list.current?.scrollToOffset({ offset: 0, animated: true })));
+  const [, setFollowing] = useState(true);
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const isAway = e.nativeEvent.contentOffset.y > AWAY;
+    const y = e.nativeEvent.contentOffset.y;
+    if (follow.current!.scrolled(y)) setFollowing(follow.current!.following());
+    const isAway = y > AWAY;
     if (isAway !== awayRef.current) { awayRef.current = isAway; setAway(isAway); }
   }, []);
-  const jump = useCallback(() => list.current?.scrollToOffset({ offset: 0, animated: true }), []);
+  const toLatest = useCallback(() => { follow.current!.sent(); setFollowing(true); }, []);
+  useEffect(() => { follow.current!.rowsChanged(); }, [rows]);
 
   const onLong = useCallback((t: Turn) => setMenu(t), []);
   const onRetry = useCallback((id: string) => { if (bot) void retry(bot, id); }, [bot, retry]);
   const render = useCallback(({ item }: { item: ChatRow }) => !bot ? null : item.kind === "day" ? <DayDivider label={item.label} /> : (
     <RowBoundary><TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} time={showTimes ? item.time : undefined} fresh={isFresh(item.turn)} highlight={searching && query ? query : undefined} onLong={onLong} onQuote={onQuote} onRetry={onRetry} /></RowBoundary>
   ), [bot, lastAssistant?.id, onLong, onQuote, onRetry, searching, query, showTimes]);
-  const onSend = useCallback((t: string, images: Attachment[] = [], files: FileAttachment[] = []) => { if (!bot) return; setEditing(null); if (awayRef.current) jump(); void send(bot, t, images, files); }, [bot, send, jump]);
+  const onSend = useCallback((t: string, images: Attachment[] = [], files: FileAttachment[] = []) => { if (!bot) return; setEditing(null); toLatest(); void send(bot, t, images, files); }, [bot, send, toLatest]);
   const onSteer = useCallback(async (t: string) => {
     if (!bot) return false;
+    toLatest();
     try { await steer(bot, t); return true; } catch (e: any) { Alert.alert("Couldn't add that", String(e?.detail ?? e?.message ?? e)); return false; }
-  }, [bot, steer]);
+  }, [bot, steer, toLatest]);
   const onStop = useCallback(() => { if (bot) stop(bot); }, [bot, stop]);
 
   useEffect(() => {
@@ -384,7 +411,7 @@ export default function BotChatScreen() {
         ) : (
           <View style={{ flex: 1 }}>
             <FlatList ref={list} data={rows} keyExtractor={(r) => r.key} renderItem={render} inverted
-              maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 120 }}
+              maintainVisibleContentPosition={follow.current!.anchor()}
               onScroll={onScroll} scrollEventThrottle={64} keyboardShouldPersistTaps="handled"
               removeClippedSubviews={false} initialNumToRender={12} maxToRenderPerBatch={8} windowSize={11}
               scrollIndicatorInsets={{ top: topInset, bottom: bottomInset }}

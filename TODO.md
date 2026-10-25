@@ -1,5 +1,10 @@
 # TODO (after the Oct 25, 2026 session)
 
+## v0.11.2 (versionCode 24)
+- Grey box over the chat (again): a 3.9k-char reply and a 2.6k-char user message each rendered as one ~3,000 dp native view (under the 6k Show-the-rest cap; user bubbles had no cap). Bubbles are now stacks of <=1.4k-char pieces (fence-aware) that read as one card; code blocks with lines over 160 chars wrap instead of making one ultra-wide view. Regression test uses the real chat's shape (letters/digits randomised). Not verified on a phone yet: the x86 emulator can't load the arm64-only APK.
+- Send always scrolls to your new message (also with attachments and on steer); scrolled up, arriving rows/tokens no longer move you; at the bottom it follows the reply.
+- Varied status line: honest tool phrases from the tool and its args; calm rotating phrases (4-6 s, crossfade, plain swap with Reduce Motion) only when nothing concrete is happening; per-bot flavour.
+
 ## v0.11.1 (versionCode 23)
 - Chat runs edge to edge: messages scroll under the floating header pills (back, face + name + status,
   "…") and under the composer, with soft SVG top/bottom fades (`src/ui/scrim.tsx`); list insets follow

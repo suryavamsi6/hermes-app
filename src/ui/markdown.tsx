@@ -7,7 +7,7 @@ import { Fragment, memo, useEffect, useMemo, useState, type ReactNode } from "re
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { tapHaptic } from "./haptics";
 import { parse, type Block, type Inline } from "../md";
-import { clipLong, hideOpenTail, safeHref, tidyText } from "../text-safety";
+import { clipLong, hideOpenTail, pieces, safeHref, tidyText, wrapsCode } from "../text-safety";
 import { colors, font, radii, type } from "./theme";
 
 type Ctx = { highlight?: string };
@@ -60,9 +60,15 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
           <Text style={[type.label, { color: copied ? colors.success : colors.muted }]}>{copied ? "Copied" : "Copy"}</Text>
         </Pressable>
       </View>
-      <ScrollView horizontal nestedScrollEnabled removeClippedSubviews={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12, paddingTop: 10 }}>
-        <Text selectable style={{ fontFamily: font.mono, fontSize: 13, lineHeight: 19, color: colors.text }}>{code}</Text>
-      </ScrollView>
+      {wrapsCode(code) ? (
+        <View style={{ padding: 12, paddingTop: 10 }}>
+          <Text selectable style={{ fontFamily: font.mono, fontSize: 13, lineHeight: 19, color: colors.text }}>{code}</Text>
+        </View>
+      ) : (
+        <ScrollView horizontal nestedScrollEnabled removeClippedSubviews={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12, paddingTop: 10 }}>
+          <Text selectable style={{ fontFamily: font.mono, fontSize: 13, lineHeight: 19, color: colors.text }}>{code}</Text>
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -112,22 +118,31 @@ function render(b: Block, key: string, ctx: Ctx): ReactNode {
   }
 }
 
-export const Markdown = memo(function Markdown({ text, highlight, streaming }: { text: string; highlight?: string; streaming?: boolean }) {
+/** `wrap` draws each piece of a long message (see `pieces`): one separate view per ~1,400 characters,
+ *  so a long reply never becomes one giant native view. Without it the pieces just stack. */
+export type PieceWrap = (children: ReactNode, i: number, n: number) => ReactNode;
+export const Markdown = memo(function Markdown({ text, highlight, streaming, wrap }: { text: string; highlight?: string; streaming?: boolean; wrap?: PieceWrap }) {
   const [all, setAll] = useState(false);
   const tidy = useMemo(() => (streaming ? hideOpenTail(tidyText(text)) : tidyText(text)), [text, streaming]);
   const shown = useMemo(() => (all || highlight ? { text: tidy, clipped: false } : clipLong(tidy)), [tidy, all, highlight]);
-  const tree = useMemo(() => parse(shown.text), [shown.text]);
+  const trees = useMemo(() => pieces(shown.text).map((p) => parse(p)), [shown.text]);
   const ctx = { highlight };
-  return (
-    <View style={{ gap: 10 }}>
-      {tree.map((b, i) => render(b, String(i), ctx))}
-      {shown.clipped ? (
-        <Pressable onPress={() => setAll(true)} accessibilityRole="button" hitSlop={8}>
-          <Text style={[type.label, { color: colors.accentText }]}>Show the rest ({Math.round((tidy.length - shown.text.length) / 1000)}k more characters)</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
+  const more = shown.clipped ? (
+    <Pressable key="more" onPress={() => setAll(true)} accessibilityRole="button" hitSlop={8}>
+      <Text style={[type.label, { color: colors.accentText }]}>Show the rest ({Math.round((tidy.length - shown.text.length) / 1000)}k more characters)</Text>
+    </Pressable>
+  ) : null;
+  const n = trees.length;
+  const body = trees.map((tree, p) => {
+    const inner = (
+      <View key={p} style={{ gap: 10 }}>
+        {tree.map((b, i) => render(b, `${p}.${i}`, ctx))}
+        {p === n - 1 ? more : null}
+      </View>
+    );
+    return wrap ? <Fragment key={p}>{wrap(inner, p, n)}</Fragment> : inner;
+  });
+  return wrap ? <>{body}</> : <View style={{ gap: 10 }}>{body}</View>;
 });
 
 /** Plain text with search matches marked (user bubbles; replies use Markdown's own highlight). */

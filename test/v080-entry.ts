@@ -3,7 +3,7 @@ export { readable, scheduleText, shortTime, toJob, isFailing, failedRoutinesLink
 export { describeNotifStatus } from "../src/notify-status";
 export { initialTurn, recoverReply, reduce, retryReusesKey, toAction } from "../src/chat-model";
 export { SseParser } from "../src/sse";
-export { activityLine, toolPhrase } from "../src/ui/activity";
+export { activityLine, toolPhrase, idleKind, idlePool, nextPhrase, phraseDelay, IDLE_PHRASES } from "../src/ui/activity";
 export { groupModels } from "../src/ui/model-groups";
 export { inQuietHours, parsePrefs, shouldNotify, DEFAULT_PREFS } from "../src/prefs-core";
 export { activityLog, currentPlan } from "../src/activity-log";

@@ -39,3 +39,72 @@ export function hideOpenTail(s: string): string {
   else if ((outside.replace(/\*\*/g, "").match(/(^|[^*])\*(?!\*)/g) ?? []).length % 2 === 1 && /\*\S*$/.test(line)) { const i = line.lastIndexOf("*"); line = line.slice(0, i) + line.slice(i + 1); }
   return s.slice(0, cut) + line;
 }
+
+/** Most characters one bubble piece holds. A long message renders as a stack of pieces that look like
+ *  one bubble, so no single Android view (the bubble's background view or a Text) gets tall enough to
+ *  hit the GPU size limit and draw as an empty grey box (v0.11.2: a 3.9k-character reply and a 2.6k
+ *  user message, both under LONG_REPLY, each made one ~3,000 dp view). ~1,400 characters is about
+ *  1,200 dp at the chat font, well under the limit even with large system font sizes. */
+export const PIECE = 1400;
+/** Code fences longer than this many lines are split into several fences (each is one Text). */
+export const PIECE_LINES = 50;
+
+/** Splits text into pieces of at most ~`max` characters at paragraph boundaries, never inside a code
+ *  fence (huge fences are re-fenced in parts), long paragraphs at sentence, line or word breaks. Joining
+ *  the pieces with blank lines gives back the same Markdown. */
+export function pieces(s: string, max = PIECE, maxLines = PIECE_LINES): string[] {
+  if (s.length <= max && (s.match(/\n/g) ?? []).length <= maxLines) return [s];
+  const units: string[] = [];
+  const lines = s.split("\n");
+  let para: string[] = [];
+  const flush = () => { if (para.length) { units.push(...splitPara(para.join("\n"), max)); para = []; } };
+  for (let i = 0; i < lines.length; i++) {
+    const open = /^\s*(```+|~~~+)(.*)$/.exec(lines[i]);
+    if (open) {
+      flush();
+      const fence = open[1], lang = open[2].trim();
+      const body: string[] = [];
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim().startsWith(fence)) body.push(lines[j++]);
+      const closed = j < lines.length;
+      for (let k = 0; k < Math.max(1, body.length); k += maxLines) {
+        const part = body.slice(k, k + maxLines);
+        units.push(`${fence}${lang}\n${part.join("\n")}${closed || k + maxLines < body.length ? `\n${fence}` : ""}`);
+      }
+      i = closed ? j : lines.length;
+      continue;
+    }
+    if (!lines[i].trim()) flush(); else para.push(lines[i]);
+  }
+  flush();
+  const out: string[] = [];
+  let cur = "";
+  for (const u of units) {
+    const lines = (x: string) => x.split("\n").length;
+    if (cur && (cur.length + 2 + u.length > max || lines(cur) + 1 + lines(u) > maxLines + 2)) { out.push(cur); cur = u; } else cur = cur ? `${cur}\n\n${u}` : u;
+  }
+  if (cur) out.push(cur);
+  return out.length ? out : [s];
+}
+
+function splitPara(p: string, max: number): string[] {
+  if (p.length <= max) return [p];
+  const out: string[] = [];
+  let rest = p;
+  while (rest.length > max) {
+    const win = rest.slice(0, max);
+    let cut = Math.max(win.lastIndexOf(". "), win.lastIndexOf("! "), win.lastIndexOf("? "), win.lastIndexOf("\n"));
+    if (cut < max / 2) cut = win.lastIndexOf(" ");
+    if (cut < max / 2) cut = max - 1;
+    out.push(rest.slice(0, cut + 1).trimEnd());
+    rest = rest.slice(cut + 1).trimStart();
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+
+/** Code blocks scroll sideways, so their Text is as wide as the longest line. Prose pasted into a fence
+ *  (the v0.11.2 fixture has a 623-character line, ~4,900 dp wide) would make a view wider than Android
+ *  can draw, so blocks with lines past this wrap instead. */
+export const WRAP_CODE_AT = 160;
+export const wrapsCode = (code: string) => code.split("\n").some((l) => l.length > WRAP_CODE_AT);
