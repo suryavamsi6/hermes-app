@@ -1,0 +1,126 @@
+// Local Hermes chat types + a pure reducer for one streamed assistant turn (unit-tested).
+export type Step = { id: string; tool: string; status: "running" | "completed" | "failed"; preview?: string; result?: string };
+export type Approval = { runId?: string; requestId: string; generation: number; title: string; detail?: string };
+// "queued": the profile's Bot Chat is busy in another client; the reply lands in the history later.
+export type TurnStatus = "streaming" | "completed" | "failed" | "cancelled" | "queued";
+export type AssistantTurn = {
+  id: string; role: "assistant"; text: string; steps: Step[]; status: TurnStatus;
+  runId?: string; approval?: Approval; error?: string; errorCode?: string;
+  /** ms since epoch, for date dividers and the long-press time. */
+  at?: number;
+  /** The connection dropped and the app is re-attaching to the run (shown calmly, not as an error). */
+  reconnecting?: boolean;
+  /** Idempotency-Key of the run this turn started; a Retry after a lost connection reuses it, so
+   *  Hermes replays the same run instead of storing the user's message twice. */
+  key?: string;
+  /** The user message this turn answers (for Retry / Regenerate). */
+  prompt?: string;
+};
+export type UserTurn = { id: string; role: "user"; text: string; at?: number };
+export type Turn = UserTurn | AssistantTurn;
+
+export type TurnAction =
+  | { type: "delta"; text: string }
+  | { type: "final"; text: string } // assistant.completed: the server's final text wins over the streamed deltas
+  | { type: "tool"; phase: "started" | "completed" | "failed"; tool: string; preview?: string }
+  | { type: "approval"; approval: Approval }
+  | { type: "run"; runId: string }
+  | { type: "reconnecting" } | { type: "reconnected" }
+  | { type: "done"; status: Exclude<TurnStatus, "streaming">; error?: string; code?: string };
+
+export const initialTurn = (id: string): AssistantTurn => ({ id, role: "assistant", text: "", steps: [], status: "streaming" });
+
+export function reduce(t: AssistantTurn, a: TurnAction): AssistantTurn {
+  switch (a.type) {
+    case "delta":
+      return { ...t, text: t.text + a.text };
+    case "final":
+      return a.text ? { ...t, text: a.text } : t;
+    case "run":
+      return t.runId ? t : { ...t, runId: a.runId };
+    case "reconnecting":
+      return t.status === "streaming" && !t.reconnecting ? { ...t, reconnecting: true } : t;
+    case "reconnected":
+      return t.reconnecting ? { ...t, reconnecting: false } : t;
+    case "approval":
+      return { ...t, approval: { ...a.approval, runId: a.approval.runId ?? t.runId } };
+    case "tool": {
+      if (a.phase === "started")
+        return { ...t, steps: [...t.steps, { id: `${t.steps.length}`, tool: a.tool, status: "running", preview: a.preview }] };
+      const phase: "completed" | "failed" = a.phase;
+      // Complete the most recent running step with the same tool name.
+      const idx = [...t.steps].reverse().findIndex((s) => s.tool === a.tool && s.status === "running");
+      if (idx === -1) return { ...t, steps: [...t.steps, { id: `${t.steps.length}`, tool: a.tool, status: phase, result: a.preview }] };
+      const real = t.steps.length - 1 - idx;
+      const steps = t.steps.map((s, i) => (i === real ? { ...s, status: phase, result: a.preview } : s));
+      return { ...t, steps, approval: undefined };
+    }
+    case "done":
+      if (t.status !== "streaming") return t; // first terminal event wins (error is followed by done/run.failed)
+      return { ...t, status: a.status, error: a.error, errorCode: a.code, approval: undefined, reconnecting: false,
+        steps: t.steps.map((s) => (s.status === "running" ? { ...s, status: a.status === "completed" ? "completed" : "failed" } : s)) };
+  }
+}
+
+/** Map one SSE event from POST /api/sessions/{id}/chat/stream to actions. Shapes follow hermes-agent
+ *  gateway/platforms/api_server.py (_handle_session_chat_stream, _stream_through_live_bot_chat):
+ *  every payload carries session_id/run_id/seq; tool events use tool_name; assistant.completed carries
+ *  the final content (the only text when the turn went through a live Bot Chat); `error` carries
+ *  message/code; `run.queued` means the Bot Chat owner hadn't answered within the wait budget. */
+export function toAction(event: string, raw: string): TurnAction[] {
+  let d: any = raw;
+  try { d = JSON.parse(raw); } catch {}
+  const s = (...k: string[]) => k.map((x) => d?.[x]).find((v) => typeof v === "string") as string | undefined;
+  const out: TurnAction[] = [];
+  const runId = s("run_id", "runId");
+  if (runId) out.push({ type: "run", runId });
+  if (event === "assistant.delta" || event === "message.delta") out.push({ type: "delta", text: s("delta", "text", "content") ?? (typeof d === "string" ? d : "") });
+  else if (event === "assistant.completed") out.push({ type: "final", text: s("content") ?? "" });
+  else if (/^tool\.(started|completed|failed)$/.test(event))
+    out.push({ type: "tool", phase: event === "tool.completed" && d?.error === true ? "failed" : event.slice(5) as any,
+      tool: s("tool_name", "tool", "name") ?? "tool", preview: s("preview") });
+  else if (event.startsWith("approval.request")) {
+    const requestId = s("request_id", "prompt_id", "id");
+    if (requestId)
+      out.push({ type: "approval", approval: { runId, requestId, generation: Number(d?.execution_generation ?? 0),
+        title: s("title", "tool", "kind") ?? "Approval needed", detail: s("command", "description", "preview", "reason") } });
+  } else if (/^run\.(completed|failed|cancelled)$/.test(event)) {
+    // /v1/runs: run.completed carries the final `output` (authoritative over the streamed deltas).
+    if (event === "run.completed" && s("output")) out.push({ type: "final", text: s("output")! });
+    out.push({ type: "done", status: event.slice(4) as any, error: s("error", "turn_exit_reason") });
+  } else if (event === "run.interrupted") out.push({ type: "done", status: "failed", error: s("error", "reason") ?? "the run was interrupted", code: "interrupted" });
+  else if (event === "run.queued") out.push({ type: "done", status: "queued" });
+  else if (event === "error") out.push({ type: "done", status: "failed", error: s("message", "error") ?? "the run failed", code: s("code") });
+  return out;
+}
+
+/** Hermes /messages rows -> plain user/assistant text with optional ms timestamps. */
+export function parseMessages(r: any): { role: "user" | "assistant"; text: string; at?: number }[] {
+  const list: any[] = Array.isArray(r) ? r : r?.messages ?? r?.data ?? [];
+  return list
+    .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
+    .map((m) => ({ role: m.role, text: typeof m.content === "string" ? m.content : (m.content as any[]).map((p) => p.text ?? "").join(""), at: toMs(m.timestamp ?? m.created_at) }))
+    .filter((m) => m.text);
+}
+/** Hermes stores message timestamps as unix seconds (float); accept ms or ISO too. */
+function toMs(v: unknown): number | undefined {
+  if (typeof v === "number" && isFinite(v)) return v < 1e12 ? v * 1000 : v;
+  if (typeof v === "string") { const n = Number(v); if (isFinite(n) && v.trim()) return toMs(n); const d = Date.parse(v); return isNaN(d) ? undefined : d; }
+  return undefined;
+}
+
+/** After a turn lost its connection for good, find its answer in the session history: the assistant
+ *  text after the latest user message equal to `prompt` (and before the next user message). */
+export function recoverReply(history: { role: "user" | "assistant"; text: string }[], prompt: string): string | undefined {
+  let i = -1;
+  for (let k = history.length - 1; k >= 0; k--) if (history[k].role === "user" && history[k].text.trim() === prompt.trim()) { i = k; break; }
+  if (i === -1) return undefined;
+  let reply: string | undefined;
+  for (let k = i + 1; k < history.length && history[k].role === "assistant"; k++) reply = history[k].text;
+  return reply;
+}
+
+/** Retry after a lost connection reuses the turn's Idempotency-Key: Hermes replays the run it may
+ *  already have started instead of storing the message twice. Any other failure (an error, an
+ *  interrupted or forgotten run, a cancel) is a fresh attempt and gets a new key. */
+export const retryReusesKey = (t: Pick<AssistantTurn, "status" | "errorCode">) => t.status === "failed" && t.errorCode === "connection_lost";
