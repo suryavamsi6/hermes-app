@@ -1,6 +1,6 @@
 {
   "name": "hermes-mobile",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -16,9 +16,14 @@
     "expo-constants": "~58.0.13",
     "expo-font": "~58.0.10",
     "expo-haptics": "~58.0.7",
+    "expo-image-manipulator": "~58.0.15",
+    "expo-image-picker": "~58.0.10",
     "expo-linking": "~58.0.14",
+    "expo-notifications": "~58.1.6",
     "expo-router": "~58.0.26",
     "expo-secure-store": "~58.0.2",
+    "expo-speech": "~58.0.3",
+    "expo-speech-recognition": "^58.0.0",
     "expo-status-bar": "~58.0.4",
     "lucide-react-native": "^1.61.0",
     "react": "19.3.0",

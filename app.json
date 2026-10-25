@@ -3,7 +3,7 @@
     "name": "Hermes",
     "slug": "hermes-mobile",
     "scheme": "hermes",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#000000",
@@ -13,13 +13,42 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000000"
       },
-      "versionCode": 11
+      "versionCode": 12,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.CAMERA"
+      ]
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "./plugins/with-high-refresh-rate"
+      "./plugins/with-high-refresh-rate",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Hermes uses the microphone to turn your speech into text.",
+          "speechRecognitionPermission": "Hermes turns your speech into text on this phone.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as"
+          ]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pick photos to send to your bot.",
+          "cameraPermission": "Take a photo to send to your bot."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#09090b"
+        }
+      ]
     ],
     "icon": "./assets/icon.png"
   }
