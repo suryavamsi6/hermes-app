@@ -1,0 +1,106 @@
+name: Release APK
+
+# Push a tag like v0.11.1 (it must match "version" in app.json) to build a signed release APK and
+# publish it to a GitHub Release. No Expo cloud: prebuild + Gradle on the runner.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build (e.g. v0.11.1)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/checkout@v4
+        with:
+          repository: suryavamsi6/hermes-bridge
+          path: .hermes-bridge
+
+      - name: Version must match the tag
+        id: version
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          CODE=$(node -p "require('./app.json').expo.android.versionCode")
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "::error::Tag $TAG doesn't match app.json version $VERSION"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci --legacy-peer-deps
+      - run: npx tsc --noEmit
+      - run: npm test
+        env:
+          HERMES_BRIDGE_SRC: ${{ github.workspace }}/.hermes-bridge
+
+      - name: Prebuild the Android project
+        run: npx expo prebuild --platform android --clean --no-install
+        env:
+          CI: "1"
+
+      - name: Build the release APK (arm64-v8a)
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+
+      - name: Sign with the release key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then echo "::error::ANDROID_KEYSTORE_BASE64 secret is missing"; exit 1; fi
+          KS="$RUNNER_TEMP/release.keystore"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KS"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          OUT="$RUNNER_TEMP/hermes-${{ steps.version.outputs.version }}.apk"
+          "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
+            --out "$OUT" android/app/build/outputs/apk/release/app-release.apk
+          rm -f "$KS"
+          "$BT/apksigner" verify --print-certs "$OUT" | grep -m1 "SHA-256"
+          echo "APK=$OUT" >> "$GITHUB_ENV"
+
+      - name: Check the APK's version
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          LINE=$("$BT/aapt2" dump badging "$APK" | grep -m1 "^package:")
+          echo "$LINE" | grep -q "versionName='${{ steps.version.outputs.version }}'" || { echo "::error::versionName mismatch: $LINE"; exit 1; }
+          echo "$LINE" | grep -q "versionCode='${{ steps.version.outputs.code }}'" || { echo "::error::versionCode mismatch: $LINE"; exit 1; }
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Hermes Mobile ${{ env.TAG }}
+          generate_release_notes: true
+          files: ${{ env.APK }}
+          fail_on_unmatched_files: true
