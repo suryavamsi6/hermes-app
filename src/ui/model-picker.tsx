@@ -7,11 +7,11 @@ import type { ModelOption } from "../backend";
 import { groupModels } from "./model-groups";
 import { colors, type } from "./theme";
 
-export function ModelPicker({ models, loading, error, selected, selectedProvider, onPick, footer, maxHeight = 420 }: {
+export function ModelPicker({ models, loading, error, selected, selectedProvider, onPick, footer, maxHeight = 420, initialQuery = "" }: {
   models?: ModelOption[] | null; loading?: boolean; error?: string | null; selected?: string; selectedProvider?: string;
-  onPick: (id: string | undefined, provider?: string) => void; footer?: string; maxHeight?: number;
+  onPick: (id: string | undefined, provider?: string) => void; footer?: string; maxHeight?: number; initialQuery?: string;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const groups = useMemo(() => groupModels(models ?? [], query), [models, query]);
   const isSel = (m: ModelOption) => selected === m.id && (!selectedProvider || !m.provider || selectedProvider === m.provider);
   return (
