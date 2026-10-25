@@ -2,15 +2,16 @@
 // attachment strip, an attach button (photos, camera, files), a dictation mic and one round action button: send when idle; while a reply is running it's
 // "add to this reply" (steer) if you typed something, else stop.
 import { ArrowUp, Blocks, Camera, CornerDownRight, FileText, Image as ImageIcon, Mic, Paperclip, Square, X } from "lucide-react-native";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { setDraftText, useDraft } from "../app-state";
+import { setDraftText, setListening, useDraft } from "../app-state";
 import { type Attachment, type FileAttachment, MAX_ATTACHMENTS, MAX_FILES, pickFiles, pickImages, setAttachments, setFileAttachments, useAttachments, useFileAttachments } from "../attach";
 import { Sheet } from "./sheet";
 import { useDictation } from "./dictation";
 import { tapHaptic } from "./haptics";
-import Reanimated from "react-native-reanimated";
-import { enter, PressScale } from "./motion";
+import Reanimated, { Easing, interpolateColor, useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
+import { useReduceMotion } from "./live-surface";
+import { DUR } from "./motion-tokens";
 import { colors, font, radii, type } from "./theme";
 
 type Props = {
@@ -37,6 +38,10 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
   const current = useCallback(() => text, [text]);
   const voice = useDictation(botId, current);
   const hasText = text.trim().length > 0;
+  // The bot's face looks "listening" while you type to it or dictate (cleared when you leave).
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { setListening(botId, focused || voice.listening); }, [botId, focused, voice.listening]);
+  useEffect(() => () => setListening(botId, false), [botId]);
   const mode = busy ? (hasText && canSteer ? "steer" : "stop") : "send";
   const canSend = hasText || images.length > 0 || files.length > 0;
 
@@ -118,6 +123,7 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
           <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
             <TextInput value={text} onChangeText={setText} placeholder={voice.listening ? "Listening…" : busy && canSteer ? "Add to this reply…" : placeholder}
               placeholderTextColor={colors.muted} accessibilityLabel={placeholder}
+              onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
               multiline style={{ flex: 1, color: colors.text, fontFamily: font.regular, fontSize: 17, maxHeight: 140, paddingVertical: 9 }} />
             <Pressable accessibilityLabel="Attach photos or files" disabled={working} hitSlop={4}
               onPress={() => { tapHaptic(); setMenu(true); }} onLongPress={() => void attach("camera")}
@@ -133,16 +139,7 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
                 <Square size={14} color={colors.muted} fill={colors.muted} />
               </Pressable>
             ) : null}
-            <PressScale accessibilityLabel={mode === "stop" ? "Stop" : mode === "steer" ? "Add to this reply" : "Send"} disabled={mode === "send" && !canSend}
-              onPress={press} to={0.86}
-              style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: colors.action, opacity: mode === "send" && !canSend ? 0.35 : 1 }}>
-              {/* Keyed by mode: the icon pops when send turns into stop (and back). */}
-              <Reanimated.View key={mode} entering={enter.pop}>
-                {mode === "stop" ? <Square size={14} color={colors.actionForeground} fill={colors.actionForeground} />
-                  : mode === "steer" ? <CornerDownRight size={19} color={colors.actionForeground} />
-                  : <ArrowUp size={20} color={colors.actionForeground} />}
-              </Reanimated.View>
-            </PressScale>
+            <SendButton mode={mode} ready={mode !== "send" || canSend} onPress={press} />
           </View>
         </View>
       </View>
@@ -169,3 +166,37 @@ function AttachRow({ icon, title, detail, disabled, onPress }: { icon: React.Rea
   );
 }
 
+
+/** The one round action button. Disabled (nothing to send): a quiet grey disc with a dim arrow.
+ *  Ready: the white disc. While a reply runs it becomes Stop (or "add to this reply" when you've typed
+ *  something). The colour eases between states, the icon pops on each change, and a press dips it. */
+function SendButton({ mode, ready, onPress }: { mode: "send" | "steer" | "stop"; ready: boolean; onPress: () => void }) {
+  const reduced = useReduceMotion();
+  const on = useSharedValue(ready ? 1 : 0), press = useSharedValue(0), pop = useSharedValue(1);
+  useEffect(() => { on.value = reduced ? (ready ? 1 : 0) : withTiming(ready ? 1 : 0, { duration: DUR.quick }); }, [ready, reduced]); // eslint-disable-line react-hooks/exhaustive-deps
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (!reduced) pop.value = withSequence(withTiming(0.6, { duration: 1 }), withTiming(1, { duration: DUR.base, easing: Easing.out(Easing.back(2)) }));
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const disc = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(on.value, [0, 1], [colors.controlActive, colors.action]),
+    transform: [{ scale: 1 - press.value * 0.12 }],
+  }));
+  const icon = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+  const fg = ready ? colors.actionForeground : colors.dim;
+  const label = mode === "stop" ? "Stop" : mode === "steer" ? "Add to this reply" : "Send";
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !ready }} disabled={!ready} onPress={onPress} hitSlop={4}
+      onPressIn={() => { if (!reduced) press.value = withTiming(1, { duration: DUR.press }); }}
+      onPressOut={() => { press.value = reduced ? 0 : withTiming(0, { duration: DUR.quick }); }}>
+      <Reanimated.View style={[{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" }, disc]}>
+        <Reanimated.View style={icon}>
+          {mode === "stop" ? <Square size={14} color={fg} fill={fg} />
+            : mode === "steer" ? <CornerDownRight size={19} color={fg} />
+            : <ArrowUp size={20} color={fg} strokeWidth={2.4} />}
+        </Reanimated.View>
+      </Reanimated.View>
+    </Pressable>
+  );
+}
