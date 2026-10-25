@@ -9,6 +9,7 @@ import { clearBotNotifications, ensureNotifications, onNotificationTap } from ".
 import { colors } from "../src/ui/theme";
 import { loadPrefs } from "../src/prefs";
 import { AppLock } from "../src/ui/app-lock";
+import { ToastHost } from "../src/ui/toast";
 
 void loadPrefs();
 
@@ -62,6 +63,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ animation: "fade" }} />
           <Stack.Screen name="settings" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         </Stack>
+        <ToastHost />
         <AppLock />
       </AppProvider>
     </SafeAreaProvider>

@@ -1,38 +1,34 @@
 // Small shared building blocks so every screen keeps the same dark, rounded look.
 import { router } from "expo-router";
-import { AlertCircle, ChevronLeft, ChevronRight, Sparkles } from "lucide-react-native";
+import { AlertCircle, Check, ChevronLeft, ChevronRight, Sparkles } from "lucide-react-native";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, type TextInputProps } from "react-native";
-import { tapHaptic } from "./haptics";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, type TextInputProps } from "react-native";
+import { doneHaptic, tapHaptic } from "./haptics";
+import { toast } from "./toast";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Bot } from "../backend";
 import { BotFace, type FaceMood } from "./bot-face";
 import { colors, font, hit, radii, type } from "./theme";
 
 /** A bot's animated face (see bot-face.tsx). Seed = bot id, so personality stays stable on rename. */
-export const Avatar = memo(function Avatar({ bot, size = 36, busy = false, mood, animate = true, badge = true }: {
-  bot: Pick<Bot, "emoji" | "color" | "color2" | "shape" | "eyes"> & { id?: string; name?: string }; size?: number; busy?: boolean; mood?: FaceMood; animate?: boolean; badge?: boolean;
+export const Avatar = memo(function Avatar({ bot, size = 36, busy = false, mood, animate = true, badge = true, poke }: {
+  bot: Pick<Bot, "emoji" | "color" | "color2" | "shape" | "eyes"> & { id?: string; name?: string }; size?: number; busy?: boolean; mood?: FaceMood; animate?: boolean; badge?: boolean; poke?: number;
 }) {
-  return <BotFace seed={bot.id ?? slug(bot.name ?? "")} color={bot.color} color2={bot.color2} shape={bot.shape} eyes={bot.eyes} emoji={bot.emoji} size={size} mood={mood ?? (busy ? "thinking" : "idle")} animate={animate} badge={badge} />;
+  return <BotFace seed={bot.id ?? slug(bot.name ?? "")} color={bot.color} color2={bot.color2} shape={bot.shape} eyes={bot.eyes} emoji={bot.emoji} size={size} mood={mood ?? (busy ? "thinking" : "idle")} animate={animate} badge={badge} poke={poke} />;
 });
-export const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-/** Three bouncing dots, shown while a bot is thinking. */
-export function TypingDots() {
-  const dots = [useRef(new Animated.Value(0.3)).current, useRef(new Animated.Value(0.3)).current, useRef(new Animated.Value(0.3)).current];
-  useEffect(() => {
-    const anims = dots.map((d, i) => Animated.loop(Animated.sequence([
-      Animated.delay(i * 140), Animated.timing(d, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.timing(d, { toValue: 0.3, duration: 300, useNativeDriver: true }), Animated.delay((2 - i) * 140),
-    ])));
-    anims.forEach((a) => a.start()); return () => anims.forEach((a) => a.stop());
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+/** A face you can tap: it reacts (squash, blink, hop) with a light haptic. For big, standalone faces
+ *  (bot settings, new bot, empty chat), not list rows, where a tap navigates. */
+export function TapFace(props: Omit<Parameters<typeof Avatar>[0], "poke"> & { label?: string }) {
+  const [poke, setPoke] = useState(0);
   return (
-    <View style={{ flexDirection: "row", gap: 4, paddingVertical: 6 }}>
-      {dots.map((d, i) => <Animated.View key={i} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors.muted, opacity: d }} />)}
-    </View>
+    <Pressable accessibilityRole="button" accessibilityLabel={props.label ?? `${props.bot.name ?? "Bot"} face`} accessibilityHint="Says hi"
+      onPress={() => { tapHaptic(); setPoke((n) => n + 1); }} hitSlop={8}>
+      <Avatar {...props} poke={poke} />
+    </Pressable>
   );
 }
+export const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 export function Screen({ title, subtitle, right, children, scroll = true }: { title: string; subtitle?: string; right?: ReactNode; children: ReactNode; scroll?: boolean }) {
   const insets = useSafeAreaInsets();
@@ -84,8 +80,25 @@ export function Row({ icon, title, detail, onPress, right, last, danger }: {
   );
 }
 
-export function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return <Switch value={value} onValueChange={(v) => { tapHaptic(); onChange(v); }} disabled={disabled} accessibilityRole="switch"
+/** A switch that answers at once: it flips immediately (with a tick) while the change is saved; if
+ *  onChange returns a promise that fails, it flips back and a toast says why. */
+export function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void | Promise<unknown>; disabled?: boolean }) {
+  const [pending, setPending] = useState<boolean | null>(null);
+  const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => { setPending(null); }, [value]);
+  useEffect(() => () => clearTimeout(settle.current), []);
+  const shown = pending ?? value;
+  return <Switch value={shown} disabled={disabled} accessibilityRole="switch" accessibilityState={{ checked: shown, disabled: !!disabled }}
+    onValueChange={(v) => {
+      tapHaptic(); setPending(v);
+      const r = onChange(v);
+      const later = () => { clearTimeout(settle.current); settle.current = setTimeout(() => setPending(null), 2500); };
+      if (!r || typeof (r as Promise<unknown>).then !== "function") { later(); return; }
+      (r as Promise<unknown>).then(
+        // Saved: the parent usually reloads right after; drop the local value once it has had time to.
+        later,
+        (e: any) => { setPending(null); toast(String(e?.message ?? e ?? "Couldn't change that"), "error"); });
+    }}
     trackColor={{ true: colors.success, false: colors.controlActive }} thumbColor="#ffffff" />;
 }
 
@@ -102,14 +115,38 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
   );
 }
 
-export function Button({ title, onPress, kind = "primary", disabled }: { title: string; onPress: () => void; kind?: "primary" | "secondary" | "danger"; disabled?: boolean }) {
+/** A full-width action. If onPress returns a promise the button shows a spinner while it runs (and
+ *  ignores repeat taps); on success it shows `doneLabel` with a check for a moment (plus a success
+ *  haptic), and a failure shows a toast. Nothing waits on the animation. */
+export function Button({ title, onPress, kind = "primary", disabled, doneLabel }: { title: string; onPress: () => void | Promise<unknown>; kind?: "primary" | "secondary" | "danger"; disabled?: boolean; doneLabel?: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  useEffect(() => { if (state !== "done") return; const t = setTimeout(() => setState("idle"), 1600); return () => clearTimeout(t); }, [state]);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
   const bg = kind === "primary" ? colors.action : kind === "danger" ? "rgba(255,96,105,0.14)" : colors.control;
   const fg = kind === "primary" ? colors.actionForeground : kind === "danger" ? colors.danger : colors.text;
+  const press = () => {
+    if (state === "busy") return;
+    if (kind === "primary") tapHaptic();
+    const r = onPress();
+    if (!r || typeof (r as Promise<unknown>).then !== "function") return;
+    setState("busy");
+    (r as Promise<unknown>).then(() => {
+      if (!alive.current) return;
+      if (doneLabel) { doneHaptic(); setState("done"); } else setState("idle");
+    }, (e: any) => { if (alive.current) setState("idle"); toast(String(e?.message ?? e ?? "That didn't work"), "error"); });
+  };
+  const label = state === "done" && doneLabel ? doneLabel : title;
   return (
-    <Pressable disabled={disabled} onPress={() => { if (kind === "primary") tapHaptic(); onPress(); }} accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ disabled: !!disabled }}
+    <Pressable disabled={disabled} onPress={press} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled, busy: state === "busy" }}
       style={({ pressed }) => ({ backgroundColor: bg, borderRadius: radii.chip, minHeight: 48, paddingVertical: 13, paddingHorizontal: 18, alignItems: "center", justifyContent: "center",
         opacity: disabled ? 0.45 : pressed ? 0.85 : 1, transform: [{ scale: pressed && !disabled ? 0.98 : 1 }] })}>
-      <Text style={{ fontFamily: font.semibold, fontSize: 15, color: fg }}>{title}</Text>
+      {state === "busy" ? <ActivityIndicator size="small" color={fg} /> : (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {state === "done" ? <Check size={17} color={kind === "primary" ? colors.actionForeground : colors.success} strokeWidth={2.6} /> : null}
+          <Text style={{ fontFamily: font.semibold, fontSize: 15, color: fg }}>{label}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }

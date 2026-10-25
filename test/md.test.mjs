@@ -56,3 +56,14 @@ test("steps summary names the first three tools", () => {
   assert.strictEqual(m.summary([s("terminal")]), "1 step · terminal");
   assert.strictEqual(m.summary([s("a"), s("b"), s("a"), s("c"), s("d")]), "5 steps · a, b, c +1");
 });
+
+test("v0.11.0: a streaming reply never flashes an unfinished **bold** or `code` opener", () => {
+  assert.strictEqual(m.hideOpenTail("Done. I removed **37"), "Done. I removed 37");
+  assert.strictEqual(m.hideOpenTail("Done. I removed **37 old** files"), "Done. I removed **37 old** files");
+  assert.strictEqual(m.hideOpenTail("run `git sta"), "run git sta");
+  assert.strictEqual(m.hideOpenTail("run `git status` and **then"), "run `git status` and then");
+  assert.strictEqual(m.hideOpenTail("**a** b\n\nnext *ital"), "**a** b\n\nnext ital");
+  assert.strictEqual(m.hideOpenTail("```bash\nls **"), "```bash\nls **", "inside an open fence it's code");
+  assert.strictEqual(m.hideOpenTail("2 * 3 = 6"), "2 * 3 = 6", "a lone asterisk with a space after is not an opener");
+  assert.strictEqual(m.hideOpenTail("earlier **open\nlast line"), "earlier **open\nlast line", "only the last line is touched");
+});

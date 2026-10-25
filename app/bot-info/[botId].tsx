@@ -11,7 +11,7 @@ import type { Bot } from "../../src/backend";
 import { AppearancePicker, useCheer } from "../../src/ui/appearance-picker";
 import { KEY_WARNING, useSetupChat } from "../../src/ui/setup-chat";
 import { useLoad } from "../../src/use-load";
-import { Avatar, Button, ComingSoon, ErrorText, Field, Row, Screen, Section, Toggle } from "../../src/ui/kit";
+import { Avatar, Button, TapFace, ComingSoon, ErrorText, Field, Row, Screen, Section, Toggle } from "../../src/ui/kit";
 import { ModelPicker } from "../../src/ui/model-picker";
 import { SkeletonRows } from "../../src/ui/motion";
 import { colors, type } from "../../src/ui/theme";
@@ -24,7 +24,6 @@ export default function BotInfo() {
   const { backend, reloadBots, primaryId, setPrimary } = useApp();
   const liveMood = useMood(botId ?? "");
   const [draft, setDraft] = useState<Bot | undefined>(bot);
-  const [saved, setSaved] = useState(false);
   const [cheer, fire] = useCheer();
   // Keep unsaved text edits when the bot reloads (e.g. after an instant appearance save).
   useEffect(() => setDraft((d) => (d && bot && d.id === bot.id ? { ...d, ...lookOf(bot) } : bot)), [bot]);
@@ -55,12 +54,12 @@ export default function BotInfo() {
   }
   async function save() {
     if (canPersona && (draft!.persona ?? "") !== (soul.data ?? "")) { await backend!.setPersona!(bot!, draft!.persona ?? ""); void soul.reload(); }
-    await backend!.updateBot(draft!); await reloadBots(); setSaved(true); setTimeout(() => setSaved(false), 1500);
+    await backend!.updateBot(draft!); await reloadBots(); fire();
   }
   return (
     <Screen title={bot.name} subtitle={`Hermes profile · ${bot.profile}`}>
       <View style={{ alignItems: "center", gap: 10 }}>
-        <Avatar bot={draft} size={104} mood={saved || cheer ? "happy" : liveMood} />
+        <TapFace bot={draft} size={104} mood={cheer ? "success" : liveMood} label={`${bot.name}'s face`} />
       </View>
       <Section footer="The primary bot sits big at the top of Home. You can also long-press any bot there.">
         <Row icon={<Star size={18} color={colors.star} fill={primaryId === bot.id ? colors.star : "transparent"} />} title="Primary bot"
@@ -85,7 +84,7 @@ export default function BotInfo() {
             onPick={(model, provider) => setDraft({ ...draft, model, provider })} />
         </View>
       </Section>
-      <Button title={saved ? "Saved ✓" : "Save changes"} onPress={() => void save()} />
+      <Button title="Save changes" doneLabel="Saved" onPress={save} />
 
       <Section title="Toolsets" footer={canToggle ? "What this bot is allowed to use." : "Read from Hermes. Turning toolsets on or off is coming soon."}>
         {(toolsets.data ?? []).map((t, i, all) => (

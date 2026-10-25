@@ -10,15 +10,16 @@ import { memo } from "react";
 import { View } from "react-native";
 import Animated from "react-native-reanimated";
 import type { Bot } from "../backend";
+import type { FaceMood } from "./face-state";
 import { Avatar } from "./kit";
 import { Rise, usePulse } from "./motion";
 import { colors, type } from "./theme";
 
-export const ActivityRow = memo(function ActivityRow({ bot, text }: { bot: Bot; text: string }) {
+export const ActivityRow = memo(function ActivityRow({ bot, text, mood = "thinking" }: { bot: Bot; text: string; mood?: FaceMood }) {
   const pulse = usePulse();
   return (
     <Rise dy={0} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 4, paddingVertical: 2 }}>
-      <Avatar bot={bot} size={24} mood="thinking" badge={false} />
+      <Avatar bot={bot} size={24} mood={mood} badge={false} />
       <View style={{ flexShrink: 1, flexGrow: 1 }}>
         <Animated.View style={pulse}>
           <Animated.Text numberOfLines={1} accessibilityLiveRegion="polite" style={[type.body, { color: colors.muted }]}>{text}</Animated.Text>

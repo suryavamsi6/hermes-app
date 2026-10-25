@@ -70,7 +70,7 @@ export default function CallScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas, alignItems: "center", justifyContent: "space-between", paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 }}>
       <View style={{ alignItems: "center", gap: 18 }}>
-        <Avatar bot={bot} size={150} mood={phase === "thinking" ? "thinking" : phase === "speaking" ? "happy" : "idle"} badge={false} />
+        <Avatar bot={bot} size={150} mood={phase === "thinking" ? "thinking" : phase === "speaking" ? "working" : phase === "listening" ? "listening" : "idle"} badge={false} />
         <Text style={[type.title, { fontSize: 26, lineHeight: 32 }]}>{bot.name}</Text>
         <Text style={[type.body, { color: colors.muted }]} accessibilityLiveRegion="polite">{label}</Text>
         {heard ? <Text style={[type.body, { color: colors.textSecondary, textAlign: "center", paddingHorizontal: 32 }]} numberOfLines={4}>"{heard}"</Text> : null}

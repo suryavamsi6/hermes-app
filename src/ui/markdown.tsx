@@ -2,10 +2,12 @@
 // code and wide tables scroll sideways. `highlight` marks matches of a chat search.
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
-import { Fragment, memo, useMemo, useState, type ReactNode } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Check, Copy } from "lucide-react-native";
+import { Fragment, memo, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { tapHaptic } from "./haptics";
 import { parse, type Block, type Inline } from "../md";
-import { clipLong, safeHref, tidyText } from "../text-safety";
+import { clipLong, hideOpenTail, safeHref, tidyText } from "../text-safety";
 import { colors, font, radii, type } from "./theme";
 
 type Ctx = { highlight?: string };
@@ -46,15 +48,19 @@ function runs(nodes: Inline[], key: string, ctx: Ctx): ReactNode[] {
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
   const [copied, setCopied] = useState(false);
+  useEffect(() => { if (!copied) return; const t = setTimeout(() => setCopied(false), 1600); return () => clearTimeout(t); }, [copied]);
   return (
-    <View style={{ borderRadius: radii.inset, backgroundColor: colors.control, overflow: "hidden" }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
-        <Text style={[type.label, { color: colors.dim }]}>{lang || "code"}</Text>
-        <Pressable hitSlop={8} onPress={() => { void Clipboard.setStringAsync(code); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
+    <View style={{ borderRadius: radii.inset, backgroundColor: colors.control, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, overflow: "hidden" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: 12, paddingRight: 4, minHeight: 34, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+        <Text style={[type.caption, { fontFamily: font.mono }]}>{lang || "code"}</Text>
+        <Pressable hitSlop={6} accessibilityRole="button" accessibilityLabel={copied ? "Copied" : "Copy code"}
+          onPress={() => { void Clipboard.setStringAsync(code); tapHaptic(); setCopied(true); }}
+          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, minHeight: 32, paddingHorizontal: 10, borderRadius: 999, backgroundColor: pressed ? colors.controlActive : "transparent" })}>
+          {copied ? <Check size={13} color={colors.success} /> : <Copy size={13} color={colors.muted} />}
           <Text style={[type.label, { color: copied ? colors.success : colors.muted }]}>{copied ? "Copied" : "Copy"}</Text>
         </Pressable>
       </View>
-      <ScrollView horizontal nestedScrollEnabled removeClippedSubviews={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12, paddingTop: 6 }}>
+      <ScrollView horizontal nestedScrollEnabled removeClippedSubviews={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 12, paddingTop: 10 }}>
         <Text selectable style={{ fontFamily: font.mono, fontSize: 13, lineHeight: 19, color: colors.text }}>{code}</Text>
       </ScrollView>
     </View>
@@ -106,9 +112,9 @@ function render(b: Block, key: string, ctx: Ctx): ReactNode {
   }
 }
 
-export const Markdown = memo(function Markdown({ text, highlight }: { text: string; highlight?: string }) {
+export const Markdown = memo(function Markdown({ text, highlight, streaming }: { text: string; highlight?: string; streaming?: boolean }) {
   const [all, setAll] = useState(false);
-  const tidy = useMemo(() => tidyText(text), [text]);
+  const tidy = useMemo(() => (streaming ? hideOpenTail(tidyText(text)) : tidyText(text)), [text, streaming]);
   const shown = useMemo(() => (all || highlight ? { text: tidy, clipped: false } : clipLong(tidy)), [tidy, all, highlight]);
   const tree = useMemo(() => parse(shown.text), [shown.text]);
   const ctx = { highlight };

@@ -11,7 +11,7 @@ import { AVATAR_EMOJI, type NewBot, STARTER_TOOLSETS as TOOLSETS } from "../src/
 import { profileIdFrom } from "../src/live-backend";
 import { AppearancePicker, useCheer } from "../src/ui/appearance-picker";
 import { useLoad } from "../src/use-load";
-import { Avatar, Button, Chip, ComingSoon, ErrorText, Field, Screen, Section } from "../src/ui/kit";
+import { Button, Chip, TapFace, ComingSoon, ErrorText, Field, Screen, Section } from "../src/ui/kit";
 import { colors, type } from "../src/ui/theme";
 
 const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
@@ -48,7 +48,7 @@ export default function NewBotScreen() {
   return (
     <Screen title={canCreate ? "New bot" : "Add a bot"} subtitle="Every bot is its own Hermes profile">
       <View style={{ alignItems: "center", gap: 12 }}>
-        <Avatar bot={b} size={104} mood={busy ? "thinking" : error ? "error" : cheer ? "happy" : "idle"} />
+        <TapFace bot={b} size={104} mood={busy ? "thinking" : error ? "error" : cheer ? "success" : "idle"} />
         <Pressable onPress={() => { const c = pick([...PALETTE, ...GRADIENTS]); look({ emoji: pick(AVATAR_EMOJI), color: c.a, color2: c.b, shape: pick([...SHAPES]) }); }} style={{ flexDirection: "row", gap: 6, alignItems: "center" }} accessibilityLabel="Randomise avatar">
           <Shuffle size={15} color={colors.muted} /><Text style={type.label}>Shuffle the look</Text>
         </Pressable>

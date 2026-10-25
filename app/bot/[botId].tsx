@@ -5,11 +5,12 @@
 // Date dividers between days; long-press a message for reactions, time, copy/share/quote/read aloud/
 // edit; swipe a bubble left to quote it. The "…" menu holds search, the model picker and export.
 import { router, useLocalSearchParams } from "expo-router";
-import { Phone, ArrowDown, ChevronDown, ChevronLeft, ChevronUp, Cpu, Ellipsis, FileDown, FileText, Loader, RotateCcw, Search, Settings2, X } from "lucide-react-native";
+import { CircleAlert, WifiOff, Phone, ArrowDown, ChevronDown, ChevronLeft, ChevronUp, Cpu, Ellipsis, FileDown, FileText, Loader, RotateCcw, Search, Settings2, X } from "lucide-react-native";
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Animated, FlatList, Image, KeyboardAvoidingView, type NativeScrollEvent, type NativeSyntheticEvent, PanResponder, Platform, Pressable, Share, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { restoreDraft, setDraftText, useApp, useBot, useChat, useMood, useReaction, useReconnecting } from "../../src/app-state";
+import { restoreDraft, setDraftText, useApp, useBot, useChat, useHasApproval, useMood, useReaction, useReconnecting } from "../../src/app-state";
+import { moodLabel, turnMood } from "../../src/ui/face-state";
 import type { Bot } from "../../src/backend";
 import type { AssistantTurn, Turn, UserTurn } from "../../src/chat-model";
 import type { Attachment, FileAttachment } from "../../src/attach";
@@ -19,11 +20,11 @@ import { ApprovalCard } from "../../src/ui/approval-card";
 import { buildRows, chatBody, type ChatRow } from "../../src/ui/chat-rows";
 import { Composer } from "../../src/ui/composer";
 import { activityLine } from "../../src/ui/activity";
-import { Avatar, Chip } from "../../src/ui/kit";
+import { Avatar, Chip, TapFace } from "../../src/ui/kit";
 import { ActivityRow } from "../../src/ui/activity-row";
 import { ModelPicker } from "../../src/ui/model-picker";
 import { usePrefs } from "../../src/prefs";
-import { enter, leave, PressScale, Rise, Skeleton } from "../../src/ui/motion";
+import { enter, leave, PressScale, Rise, Skeleton, Spin } from "../../src/ui/motion";
 import { NoticeChip } from "../../src/ui/notice-chip";
 import Reanimated from "react-native-reanimated";
 import { Markdown, MarkedText } from "../../src/ui/markdown";
@@ -45,7 +46,7 @@ type RowProps = { turn: Turn; bot: Bot; isLast: boolean; time?: string; fresh?: 
 
 /** Swipe a bubble left to quote it (Grok-style). Only claims clearly horizontal left drags, so
  *  scrolling the list and long-pressing still work. */
-function SwipeQuote({ onQuote, children }: { onQuote: () => void; children: ReactNode }) {
+function SwipeQuote({ onQuote, children, style }: { onQuote: () => void; children: ReactNode; style?: object }) {
   const x = useRef(new Animated.Value(0)).current;
   const responder = useRef(PanResponder.create({
     onMoveShouldSetPanResponder: (_e, g) => g.dx < -14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
@@ -55,7 +56,7 @@ function SwipeQuote({ onQuote, children }: { onQuote: () => void; children: Reac
       if (g.dx < -48) onQuote();
     },
   })).current;
-  return <Animated.View style={{ transform: [{ translateX: x }] }} {...responder.panHandlers}>{children}</Animated.View>;
+  return <Animated.View style={[style, { transform: [{ translateX: x }] }]} {...responder.panHandlers}>{children}</Animated.View>;
 }
 
 /** One message that fails to render shows a short note instead of taking the whole chat down. */
@@ -78,7 +79,8 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highligh
   const canRetry = !!t.prompt;
   const lost = t.errorCode === "connection_lost";
   const note = t.status === "failed" ? (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }} accessibilityLiveRegion="polite">
+      {lost ? <WifiOff size={14} color={colors.muted} /> : <CircleAlert size={14} color={colors.danger} />}
       <Text style={[type.label, { color: lost ? colors.muted : colors.danger, flexShrink: 1 }]}>
         {lost ? "Couldn't reach Hermes to finish this reply." : `That didn't work: ${t.error ?? "the run failed"}`}
       </Text>
@@ -92,20 +94,20 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highligh
   ) : t.status === "queued" ? <Text style={type.label}>Hermes is busy with this chat in another window. The reply will show up here when it's done.</Text>
     : t.status === "streaming" && t.reconnecting ? (
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }} accessibilityLiveRegion="polite">
-        <Loader size={13} color={colors.muted} /><Text style={type.label}>Reconnecting…</Text>
+        <Spin><Loader size={13} color={colors.muted} /></Spin><Text style={type.label}>Reconnecting…</Text>
       </View>
     ) : null;
   return (
     <Rise play={fresh} style={{ gap: 8, alignItems: "flex-start" }}>
       {t.steps.length ? <View style={{ paddingLeft: 4 }}><StepsRow steps={t.steps} /></View> : null}
-      {activity ? <ActivityRow bot={bot} text={showStatus ? activity : "Working"} /> : null}
+      {activity ? <ActivityRow bot={bot} mood={turnMood(t)} text={showStatus ? activity : "Working"} /> : null}
       {t.approval ? <Rise scale={0.96}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} onEdit={(d) => setDraftText(bot.id, `Don't run that. Instead:\n${d}`)} /></Rise> : null}
       {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>↪ You added: {s}</Text>) : null}
       {t.text ? (
-        <SwipeQuote onQuote={() => onQuote(turn)}>
+        <SwipeQuote onQuote={() => onQuote(turn)} style={{ maxWidth: "94%" }}>
           <Pressable onLongPress={longPress} delayLongPress={300}
-            style={{ maxWidth: "94%", backgroundColor: colors.botBubble, borderRadius: radii.bubble, borderTopLeftRadius: isLast ? 8 : radii.bubble, paddingHorizontal: 18, paddingVertical: 14 }}>
-            <Markdown text={t.text} highlight={highlight} />
+            style={{ backgroundColor: colors.botBubble, borderRadius: radii.bubble, borderTopLeftRadius: isLast ? 8 : radii.bubble, paddingHorizontal: 18, paddingVertical: 14 }}>
+            <Markdown text={t.text} highlight={highlight} streaming={t.status === "streaming"} />
           </Pressable>
         </SwipeQuote>
       ) : null}
@@ -129,9 +131,9 @@ function RetryPill({ onPress }: { onPress: () => void }) {
 function UserRow({ t, time, reaction, longPress, unreact, quote, highlight }: { t: UserTurn; time?: string; reaction?: string; longPress: () => void; unreact: () => void; quote: () => void; highlight?: string }) {
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
-      <SwipeQuote onQuote={quote}>
+      <SwipeQuote onQuote={quote} style={{ maxWidth: "82%" }}>
         <Pressable onLongPress={longPress} delayLongPress={300}
-          style={{ maxWidth: "82%", backgroundColor: colors.userBubble, borderRadius: radii.bubble, borderTopRightRadius: 8, paddingHorizontal: 18, paddingVertical: 12 }}>
+          style={{ backgroundColor: colors.userBubble, borderRadius: radii.bubble, borderTopRightRadius: 8, paddingHorizontal: 18, paddingVertical: 12 }}>
           {t.images?.length ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: t.text ? 8 : 0 }}>
               {t.images.map((u) => <Image key={u} source={{ uri: u }} resizeMethod="resize" style={{ width: 120, height: 120, borderRadius: radii.inset }} />)}
@@ -181,9 +183,9 @@ function JumpButton({ unseen, onPress }: { unseen: number; onPress: () => void }
 /** Floating pill header (Grok-style): back circle, face + name pill (opens settings), "…" circle
  *  (search, model, export). Subscribes to the mood itself, so it re-renders only when the mood changes. */
 const Header = memo(function Header({ bot, top, onMenu }: { bot: Bot; top: number; onMenu: () => void }) {
-  const mood = useMood(bot.id);
+  const mood = useMood(bot.id, true);
   const reconnecting = useReconnecting(bot.id);
-  const status = reconnecting ? "reconnecting…" : mood === "approval" ? "needs your OK" : mood === "thinking" ? "thinking…" : mood === "happy" ? "done! ✨" : mood === "error" ? "having a nap…" : null;
+  const status = moodLabel(mood, { reconnecting, approval: useHasApproval(bot.id) });
   const circle = { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: colors.floating, borderWidth: 1, borderColor: colors.border } as const;
   return (
     <View pointerEvents="box-none" style={{ position: "absolute", top, left: 0, right: 0, zIndex: 2, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
@@ -195,7 +197,7 @@ const Header = memo(function Header({ bot, top, onMenu }: { bot: Bot; top: numbe
         <Avatar bot={bot} size={32} mood={mood} badge={false} />
         <View style={{ flexShrink: 1 }}>
           <Text style={[type.title, { fontSize: 17 }]} numberOfLines={1}>{bot.name}</Text>
-          {status ? <Text style={[type.label, { fontSize: 11, lineHeight: 13, color: mood === "thinking" ? colors.accentText : colors.muted }]} numberOfLines={1}>{status}</Text> : null}
+          {status ? <Text style={[type.label, { fontSize: 11, lineHeight: 13, color: mood === "thinking" || mood === "working" ? colors.accentText : mood === "waiting" ? colors.warning : colors.muted }]} numberOfLines={1}>{status}</Text> : null}
         </View>
       </Pressable>
       <View style={{ flex: 1 }} />
@@ -226,10 +228,10 @@ function ChatSkeleton() {
 }
 
 function EmptyChat({ bot, error, onPick, onRetry }: { bot: Bot; error?: string; onPick: (s: string) => void; onRetry: () => void }) {
-  const mood = useMood(bot.id);
+  const mood = useMood(bot.id, true);
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24 }}>
-      <Avatar bot={bot} size={84} mood={mood} />
+      <TapFace bot={bot} size={84} mood={mood} label={`${bot.name}'s face`} />
       <Text style={[type.title, { fontSize: 20 }]}>Say hi to {bot.name}</Text>
       <Text style={[type.bodySm, { color: error ? colors.danger : colors.muted, textAlign: "center" }]}>{error ? `Couldn't load the chat: ${error}` : bot.description}</Text>
       {error ? <RetryPill onPress={onRetry} /> : null}

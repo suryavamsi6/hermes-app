@@ -23,3 +23,19 @@ export function clipLong(s: string, limit = LONG_REPLY): { text: string; clipped
   const cut = s.lastIndexOf("\n\n", limit);
   return { text: s.slice(0, cut > limit / 2 ? cut : limit).trimEnd(), clipped: true };
 }
+
+/** While a reply is still streaming, its last line can end inside an unfinished `**bold**` or
+ *  `` `code` `` span, which would flash as raw asterisks/backticks until the closing marker arrives.
+ *  Drop an unmatched trailing opener on the last line (outside code fences). Finished replies are
+ *  never touched. */
+export function hideOpenTail(s: string): string {
+  if ((s.match(/^```/gm) ?? []).length % 2 === 1) return s; // inside an open code fence: shown as code
+  const cut = s.lastIndexOf("\n") + 1;
+  let line = s.slice(cut);
+  const ticks = (line.match(/`/g) ?? []).length;
+  if (ticks % 2 === 1) { const i = line.lastIndexOf("`"); line = line.slice(0, i) + line.slice(i + 1); }
+  const outside = line.replace(/`[^`]*`/g, "");
+  if ((outside.match(/\*\*/g) ?? []).length % 2 === 1) { const i = line.lastIndexOf("**"); line = line.slice(0, i) + line.slice(i + 2); }
+  else if ((outside.replace(/\*\*/g, "").match(/(^|[^*])\*(?!\*)/g) ?? []).length % 2 === 1 && /\*\S*$/.test(line)) { const i = line.lastIndexOf("*"); line = line.slice(0, i) + line.slice(i + 1); }
+  return s.slice(0, cut) + line;
+}

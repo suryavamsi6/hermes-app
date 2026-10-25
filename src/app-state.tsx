@@ -15,7 +15,8 @@ import * as Store from "./secure";
 import { isGatewayNotice, parseNotice, tidyEscapes } from "./notices";
 import { splitFiles, withFiles } from "./files";
 import { createStore, useStore } from "./store";
-import type { FaceMood } from "./ui/bot-face";
+import { faceMood, type FaceMood } from "./ui/face-state";
+import { activityLine } from "./ui/activity";
 import type { ApprovalChoice } from "./chat-model";
 
 const BUILD_DEMO = process.env.EXPO_PUBLIC_DEMO === "1";
@@ -369,16 +370,28 @@ export const useBusyCount = () => useStore(live, (s) => Object.values(s.chats).f
 export const usePreview = (botId: string) => useStore(live, (s) => s.preview[botId] ?? "");
 export const useBusy = (botId: string) => useStore(live, (s) => s.chats[botId]?.busy ?? false);
 export const useReaction = (id: string) => useStore(live, (s) => s.reactions[id]);
-export function moodFrom(c: BotChat | undefined, happy: boolean): FaceMood {
-  let last: AssistantTurn | undefined;
-  for (let i = (c?.turns.length ?? 0) - 1; i >= 0; i--) { const t = c!.turns[i]; if (t.role === "assistant") { last = t; break; } }
-  if (last?.approval) return "approval";
-  if (c?.busy) return "thinking";
-  if (happy) return "happy";
-  if (c?.error || last?.status === "failed") return "error";
-  return "idle";
-}
-export const useMood = (botId: string): FaceMood => useStore(live, (s) => moodFrom(s.chats[botId], !!s.happy[botId]));
+/** Composer focused or dictating, per bot (drives the "listening" face in that chat). */
+const listenStore = createStore<Record<string, boolean>>({});
+export const setListening = (botId: string, on: boolean) => listenStore.set((s) => (!!s[botId] === on ? s : { ...s, [botId]: on }));
+/** The bot's face mood from real state (see face-state.ts). `withListening`: also show "listening"
+ *  while you type or dictate to it (only the open chat passes this). */
+export const useMood = (botId: string, withListening = false): FaceMood => {
+  const listening = useStore(listenStore, (s) => withListening && !!s[botId]);
+  return useStore(live, (s) => faceMood(s.chats[botId], { happy: !!s.happy[botId], listening }));
+};
+/** What the bot is doing right now, in words ("Running git status", "Thinking"), or "" when idle. */
+export const useActivity = (botId: string) => useStore(live, (s) => {
+  const c = s.chats[botId];
+  if (!c?.busy) return "";
+  for (let i = c.turns.length - 1; i >= 0; i--) { const t = c.turns[i]; if (t.role === "assistant") return t.status === "streaming" ? (t.text ? "Writing a reply" : activityLine(t) ?? "") : "Thinking"; }
+  return "Thinking";
+});
+/** The latest reply is paused waiting for your OK (an approval card is showing). */
+export const useHasApproval = (botId: string) => useStore(live, (s) => {
+  const turns = s.chats[botId]?.turns ?? [];
+  for (let i = turns.length - 1; i >= 0; i--) { const t = turns[i]; if (t.role === "assistant") return t.status === "streaming" && !!t.approval; }
+  return false;
+});
 /** The running reply lost its connection and is quietly re-attaching. */
 export const useReconnecting = (botId: string) => useStore(live, (s) => {
   const turns = s.chats[botId]?.turns ?? [];

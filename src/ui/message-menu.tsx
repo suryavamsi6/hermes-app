@@ -10,6 +10,7 @@ import { REACTIONS } from "./reactions";
 import { Sheet, SheetRow } from "./sheet";
 import { colors, type } from "./theme";
 import { getPrefs } from "../prefs";
+import { toast } from "./toast";
 
 export type MessageMenuActions = {
   react: (emoji: string | null) => void;
@@ -47,7 +48,7 @@ export function MessageMenu({ turn, reaction, onClose, actions }: { turn: Turn |
           ))}
         </View>
         {turn.at ? <Text style={[type.label, { color: colors.muted, paddingHorizontal: 20, paddingBottom: 6 }]}>{turn.role === "user" ? "Sent" : "Replied"} {messageTime(turn.at)}</Text> : null}
-        {turn.text ? <SheetRow icon={icon(Copy)} label="Copy" onPress={run(() => void Clipboard.setStringAsync(turn.text))} /> : null}
+        {turn.text ? <SheetRow icon={icon(Copy)} label="Copy" onPress={run(() => { void Clipboard.setStringAsync(turn.text).then(() => toast("Copied")).catch(() => toast("Couldn't copy", "error")); })} /> : null}
         {turn.text ? <SheetRow icon={icon(Share2)} label="Share" onPress={run(() => void Share.share({ message: turn.text }).catch(() => {}))} /> : null}
         {turn.text ? <SheetRow icon={icon(MessageSquareQuote)} label="Quote in reply" onPress={run(actions.quote)} /> : null}
         {turn.text ? <SheetRow icon={icon(Volume2)} label="Read aloud" onPress={readAloud} /> : null}
