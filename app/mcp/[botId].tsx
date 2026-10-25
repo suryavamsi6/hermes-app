@@ -10,6 +10,7 @@ import { useLoad } from "../../src/use-load";
 import { Button, Chip, ComingSoon, Empty, ErrorText, Field, Row, Screen, Section, Toggle } from "../../src/ui/kit";
 import { colors, font, type } from "../../src/ui/theme";
 import { SkeletonRows } from "../../src/ui/motion";
+import { toast } from "../../src/ui/toast";
 
 export default function McpScreen() {
   const { botId } = useLocalSearchParams<{ botId: string }>();
@@ -31,7 +32,8 @@ export default function McpScreen() {
   }
   async function add() {
     setBusy(true); setError(null);
-    try { await backend!.addMcp(bot!, { name: name.trim(), url: url.trim(), authHeader: auth.trim() || undefined }); setName(""); setUrl(""); setAuth(""); setChanged(true); await servers.reload(); }
+    const added = name.trim();
+    try { await backend!.addMcp(bot!, { name: added, url: url.trim(), authHeader: auth.trim() || undefined }); setName(""); setUrl(""); setAuth(""); setChanged(true); await servers.reload(); toast(`Connected ${added}`); }
     catch (e: any) { setError(String(e?.message ?? e)); } finally { setBusy(false); }
   }
   return (
@@ -49,7 +51,7 @@ export default function McpScreen() {
               {(catalog.data ?? []).map((e) => <CatalogCard key={e.name} e={e} open={open === e.name} env={env} busy={busy}
                 onOpen={() => { setOpen(open === e.name ? null : e.name); setEnv({}); setError(null); }}
                 onEnv={(k, v) => setEnv({ ...env, [k]: v })}
-                onInstall={async () => { setBusy(true); setError(null); try { await backend.installMcpCatalog!(bot, e.name, env); setOpen(null); setEnv({}); setChanged(true); await catalog.reload(); void servers.reload(); } catch (err: any) { setError(String(err?.message ?? err)); } finally { setBusy(false); } }} />)}
+                onInstall={async () => { setBusy(true); setError(null); try { await backend.installMcpCatalog!(bot, e.name, env); setOpen(null); setEnv({}); setChanged(true); await catalog.reload(); void servers.reload(); toast(`Installed ${e.name}`); } catch (err: any) { setError(String(err?.message ?? err)); } finally { setBusy(false); } }} />)}
               {catalog.loading && !catalog.data ? <SkeletonRows /> : null}
               {catalog.data?.length === 0 ? <Empty emoji="📚" title="Catalog is empty" body="This Hermes has no approved MCP entries." /> : null}
               {changed ? <Text style={[type.bodySm, { color: colors.success }]}>Installed. Open Connected and tap "Restart Hermes to apply".</Text> : null}
@@ -61,7 +63,7 @@ export default function McpScreen() {
           <Section title="Connected">
             {(servers.data ?? []).map((s, i, all) => (
               <Row key={s.name} last={i === all.length - 1} icon={<Plug size={18} color={s.enabled ? colors.success : colors.dim} />}
-                title={s.name} detail={`${s.url}${s.tools != null ? ` · ${s.tools} tools` : ""}${s.hasAuth ? " · 🔒" : ""}`}
+                title={s.name} detail={`${s.enabled ? "On" : "Off"}${s.tools != null ? ` · ${s.tools} tools` : ""}${s.hasAuth ? " · token set" : ""} · ${s.url}`}
                 right={<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <Toggle value={s.enabled} onChange={(v) => void act(() => backend.setMcpEnabled(bot, s.name, v))} />
                   <Pressable hitSlop={8} accessibilityLabel={`Remove ${s.name}`} onPress={() => void act(() => backend.removeMcp(bot, s.name))}><Trash2 size={17} color={colors.dim} /></Pressable>

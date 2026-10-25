@@ -56,7 +56,6 @@ function EditableMemory() {
   const { backend } = useApp();
   const mem = useLoad(() => backend!.getMemory(bot), [bot.id, backend]);
   const [draft, setDraft] = useState<Memory>({ memory: "", user: "" });
-  const [saved, setSaved] = useState(false);
   useEffect(() => { if (mem.data) setDraft(mem.data); }, [mem.data]);
   return (
     <Screen title="Memory" subtitle={`What ${bot.name} remembers`}>
@@ -64,7 +63,7 @@ function EditableMemory() {
         <View style={{ gap: 14 }}>
           <Field label="About you (USER.md)" multiline value={draft.user} onChangeText={(user) => setDraft({ ...draft, user })} />
           <Field label={`${bot.name}'s notes (MEMORY.md)`} multiline value={draft.memory} onChangeText={(memory) => setDraft({ ...draft, memory })} style={{ minHeight: 160 }} />
-          <Button title={saved ? "Saved ✓" : "Save memory"} onPress={async () => { await backend!.setMemory(bot, draft); setSaved(true); setTimeout(() => setSaved(false), 1500); }} />
+          <Button title="Save memory" doneLabel="Saved" onPress={() => backend!.setMemory(bot, draft)} />
         </View>
       )}
       <ErrorText error={mem.error} />

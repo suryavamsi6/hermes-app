@@ -4,13 +4,15 @@ import { useLocalSearchParams } from "expo-router";
 import { Pause, Play, Trash2, Zap } from "lucide-react-native";
 import { useState } from "react";
 import { isFailing } from "../src/job-text";
-import { Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Text, View } from "react-native";
 import { useApp } from "../src/app-state";
 import type { Bot, Job } from "../src/backend";
 import { useLoad } from "../src/use-load";
 import { Avatar, Button, Chip, Empty, ErrorText, Field, Screen, Section } from "../src/ui/kit";
 import { colors, type } from "../src/ui/theme";
 import { SkeletonRows } from "../src/ui/motion";
+import { tapHaptic } from "../src/ui/haptics";
+import { toast } from "../src/ui/toast";
 
 const PRESETS = [["Every morning", "0 8 * * *"], ["Weekdays 9:00", "0 9 * * 1-5"], ["Hourly", "0 * * * *"], ["Sundays", "0 10 * * 0"]];
 
@@ -33,7 +35,14 @@ export default function Routines() {
   const groups = (jobs.data ?? []).filter((g) => !filter || g.bot.id === filter).map((g) => ({ ...g,
     jobs: g.jobs.filter((j) => !onlyFailed || isFailing(j)).sort((a, b) => Number(b.id === focus) - Number(a.id === focus)) }))
     .filter((g) => !onlyFailed || g.jobs.length);
-  const act = async (f: () => Promise<void>) => { try { await f(); await jobs.reload(); } catch (e: any) { setError(String(e?.message ?? e)); } };
+  const act = async (f: () => Promise<void>, ok?: string) => {
+    setError(null);
+    try { await f(); if (ok) toast(ok); await jobs.reload(); } catch (e: any) { setError(String(e?.message ?? e)); }
+  };
+  const confirmDelete = (bot: Bot, j: Job) => Alert.alert(`Delete "${j.name}"?`, "Hermes stops running it. This can't be undone.", [
+    { text: "Cancel", style: "cancel" },
+    { text: "Delete", style: "destructive", onPress: () => void act(() => backend.deleteJob(bot, j.id), "Routine deleted") },
+  ]);
 
   return (
     <Screen title="Routines" subtitle="Recurring jobs that report back to each bot">
@@ -47,7 +56,7 @@ export default function Routines() {
           {list.map((j, i) => (
             <View key={j.id} style={{ flexDirection: "row", gap: 12, padding: 14, borderBottomWidth: i === list.length - 1 ? 0 : 1, borderBottomColor: colors.border, opacity: j.paused ? 0.55 : 1,
               ...(j.id === focus ? { borderLeftWidth: 3, borderLeftColor: isFailing(j) ? colors.danger : colors.accentText } : null) }}>
-              <Avatar bot={bot} size={30} />
+              <Avatar bot={bot} size={30} animate={false} />
               <Pressable style={{ flex: 1, gap: 2 }} accessibilityLabel={`Edit ${j.name}`} disabled={!backend.updateJob}
                 onPress={() => { setEditing({ bot, id: j.id }); setForm({ name: j.name, schedule: j.schedule, prompt: j.prompt }); }}>
                 <Text style={[type.body, { fontSize: 15 }]}>{j.name}{j.paused ? "  · paused" : ""}</Text>
@@ -59,12 +68,12 @@ export default function Routines() {
                   </Text>
                 ) : null}
               </Pressable>
-              <View style={{ gap: 12, alignItems: "center" }}>
-                <Pressable hitSlop={8} accessibilityLabel="Run now" onPress={() => act(() => backend.runJob(bot, j.id))}><Zap size={17} color={colors.accentText} /></Pressable>
-                <Pressable hitSlop={8} accessibilityLabel={j.paused ? "Resume" : "Pause"} onPress={() => act(() => backend.setJobPaused(bot, j.id, !j.paused))}>
+              <View style={{ gap: 2, alignItems: "center", marginRight: -6 }}>
+                <IconAction label={`Run ${j.name} now`} onPress={() => act(() => backend.runJob(bot, j.id), `Started ${j.name}`)}><Zap size={17} color={colors.accentText} /></IconAction>
+                <IconAction label={j.paused ? `Resume ${j.name}` : `Pause ${j.name}`} onPress={() => act(() => backend.setJobPaused(bot, j.id, !j.paused), j.paused ? "Resumed" : "Paused")}>
                   {j.paused ? <Play size={17} color={colors.muted} /> : <Pause size={17} color={colors.muted} />}
-                </Pressable>
-                <Pressable hitSlop={8} accessibilityLabel="Delete" onPress={() => act(() => backend.deleteJob(bot, j.id))}><Trash2 size={17} color={colors.dim} /></Pressable>
+                </IconAction>
+                <IconAction label={`Delete ${j.name}`} onPress={() => confirmDelete(bot, j)}><Trash2 size={17} color={colors.dim} /></IconAction>
               </View>
             </View>
           ))}
@@ -88,12 +97,22 @@ export default function Routines() {
               onPress={() => act(async () => {
                 if (editing) await backend.updateJob!(editing.bot, editing.id, form); else await backend.createJob(target, form);
                 setEditing(null); setForm({ name: "", schedule: PRESETS[0][1], prompt: "" });
-              })} />
+              }, editing ? "Routine saved" : "Routine added")} />
             {editing ? <Button title="Cancel" kind="secondary" onPress={() => { setEditing(null); setForm({ name: "", schedule: PRESETS[0][1], prompt: "" }); }} /> : null}
           </View>
         </Section>
       ) : null}
       <ErrorText error={error ?? jobs.error} />
     </Screen>
+  );
+}
+
+/** A 40-pt round icon button with a pressed state (routine actions). */
+function IconAction({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => { tapHaptic(); onPress(); }} hitSlop={2}
+      style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.controlActive : "transparent" })}>
+      {children}
+    </Pressable>
   );
 }
