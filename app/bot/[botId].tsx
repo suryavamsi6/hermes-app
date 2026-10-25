@@ -6,11 +6,13 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { ArrowDown, ChevronLeft, Ellipsis, Loader, RotateCcw } from "lucide-react-native";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, KeyboardAvoidingView, type NativeScrollEvent, type NativeSyntheticEvent, Platform, Pressable, Text, View } from "react-native";
+import { Alert, FlatList, Image, KeyboardAvoidingView, type NativeScrollEvent, type NativeSyntheticEvent, Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { restoreDraft, setDraftText, useApp, useBot, useChat, useMood, useReaction, useReconnecting } from "../../src/app-state";
 import type { Bot } from "../../src/backend";
 import type { AssistantTurn, Turn, UserTurn } from "../../src/chat-model";
+import type { Attachment } from "../../src/attach";
+import { canSteer as steerable, runningTurn } from "../../src/chat-tools";
 import { ApprovalCard } from "../../src/ui/approval-card";
 import { buildRows, type ChatRow } from "../../src/ui/chat-rows";
 import { Composer } from "../../src/ui/composer";
@@ -67,6 +69,7 @@ const TurnRow = memo(function TurnRow({ turn, bot, isLast, onLong, onRetry }: Ro
         </View>
       ) : t.steps.length ? <View style={{ paddingLeft: 4 }}><StepsRow steps={t.steps} running={t.status === "streaming" && !t.text} /></View> : null}
       {t.approval ? <ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} /> : null}
+      {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>↪ You added: {s}</Text>) : null}
       {t.text ? (
         <Pressable onLongPress={longPress} delayLongPress={300}
           style={{ maxWidth: "94%", backgroundColor: colors.botBubble, borderRadius: radii.bubble, borderTopLeftRadius: isLast ? 8 : radii.bubble, paddingHorizontal: 18, paddingVertical: 14 }}>
@@ -94,7 +97,12 @@ function UserRow({ t, reaction, longPress, unreact }: { t: UserTurn; reaction?: 
     <View style={{ alignItems: "flex-end", gap: 4 }}>
       <Pressable onLongPress={longPress} delayLongPress={300}
         style={{ maxWidth: "82%", backgroundColor: colors.userBubble, borderRadius: radii.bubble, borderTopRightRadius: 8, paddingHorizontal: 18, paddingVertical: 12 }}>
-        <Text style={type.chat}>{t.text}</Text>
+        {t.images?.length ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: t.text ? 8 : 0 }}>
+            {t.images.map((u) => <Image key={u} source={{ uri: u }} style={{ width: 120, height: 120, borderRadius: radii.inset }} />)}
+          </View>
+        ) : t.imageCount ? <Text style={[type.label, { marginBottom: t.text ? 6 : 0 }]}>📷 {t.imageCount === 1 ? "Photo" : `${t.imageCount} photos`}</Text> : null}
+        {t.text ? <Text style={type.chat}>{t.text}</Text> : null}
       </Pressable>
       {reaction ? <ReactionBadge emoji={reaction} align="flex-end" onPress={unreact} /> : null}
     </View>
@@ -168,7 +176,7 @@ const AWAY = 320; // px scrolled up from the newest message before the jump butt
 export default function BotChatScreen() {
   const { botId } = useLocalSearchParams<{ botId: string }>();
   const bot = useBot(botId);
-  const { loadChat, send, retry, syncChat, stop, setActive, react, bots } = useApp();
+  const { loadChat, send, steer, retry, syncChat, stop, setActive, react, bots } = useApp();
   const insets = useSafeAreaInsets();
   const list = useRef<FlatList<ChatRow>>(null);
   const chat = useChat(bot?.id);
@@ -199,7 +207,11 @@ export default function BotChatScreen() {
   const render = useCallback(({ item }: { item: ChatRow }) => !bot ? null : item.kind === "day" ? <DayDivider label={item.label} /> : (
     <TurnRow turn={item.turn} bot={bot} isLast={item.turn.id === lastAssistant?.id} onLong={onLong} onRetry={onRetry} />
   ), [bot, lastAssistant?.id, onLong, onRetry]);
-  const onSend = useCallback((t: string) => { if (!bot) return; if (awayRef.current) jump(); void send(bot, t); }, [bot, send, jump]);
+  const onSend = useCallback((t: string, images: Attachment[] = []) => { if (!bot) return; if (awayRef.current) jump(); void send(bot, t, images); }, [bot, send, jump]);
+  const onSteer = useCallback(async (t: string) => {
+    if (!bot) return false;
+    try { await steer(bot, t); return true; } catch (e: any) { Alert.alert("Couldn't add that", String(e?.detail ?? e?.message ?? e)); return false; }
+  }, [bot, steer]);
   const onStop = useCallback(() => { if (bot) stop(bot); }, [bot, stop]);
 
   useEffect(() => {
@@ -234,7 +246,8 @@ export default function BotChatScreen() {
           </View>
         )}
         <View style={{ paddingBottom: insets.bottom, display: bot.needsKey ? "none" : "flex" }}>
-          <Composer botId={bot.id} busy={busy} placeholder={`Ask ${bot.name}`} onSend={onSend} onStop={onStop} onPlus={onPlus} />
+          <Composer botId={bot.id} busy={busy} placeholder={`Ask ${bot.name}`} onSend={onSend} onStop={onStop} onPlus={onPlus}
+            onSteer={onSteer} canSteer={steerable(runningTurn(turns))} />
         </View>
       </KeyboardAvoidingView>
       <MessageMenu turn={menu} reaction={menuReaction} onClose={() => setMenu(null)} actions={{

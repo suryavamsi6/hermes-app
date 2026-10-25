@@ -2,7 +2,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Backend, Bot } from "./backend";
 import { AppState } from "react-native";
-import { type AssistantTurn, initialTurn, parseMessages, recoverReply, reduce, retryReusesKey, type Turn, type TurnAction } from "./chat-model";
+import { buildInput, canSteer, runningTurn } from "./chat-tools";
+import { notifyApproval, notifyDone } from "./notify";
+import { type AssistantTurn, initialTurn, type HistoryMessage, parseMessages, recoverReply, reduce, retryReusesKey, type Turn, type TurnAction } from "./chat-model";
 import type { StreamHandle } from "./hermes";
 import { newRunKey } from "./run-stream";
 import { doneHaptic } from "./ui/haptics";
@@ -24,7 +26,10 @@ type Ctx = {
   setActive: (botId: string | null) => void;
   /** Load the bot's chat once; `force` reloads it (e.g. after the bot got a chat key). */
   loadChat: (bot: Bot, force?: boolean) => Promise<void>;
-  send: (bot: Bot, text: string) => Promise<void>;
+  /** Send a message; `images` are photos picked in the composer (local URI for the bubble, data: URL for Hermes). */
+  send: (bot: Bot, text: string, images?: { uri: string; dataUrl: string }[]) => Promise<void>;
+  /** Add guidance to the reply that's being written. Throws when Hermes no longer accepts it. */
+  steer: (bot: Bot, text: string) => Promise<void>;
   /** Retry a failed/stopped assistant turn in place. */
   retry: (bot: Bot, turnId: string) => Promise<void>;
   /** Re-read the chat from Hermes if nothing is running (pull-to-refresh). */
@@ -83,10 +88,10 @@ export function retryReason(code?: string): "bot_chat" | "stale" | null {
   if (code === "session_not_found" || code === "404") return "stale";
   return null;
 }
-const toTurns = (history: { role: "user" | "assistant"; text: string; at?: number }[]): Turn[] => {
+const toTurns = (history: HistoryMessage[]): Turn[] => {
   let prompt: string | undefined;
   return history.map((m) => {
-    if (m.role === "user") { prompt = m.text; return { id: nextId("u"), role: "user", text: m.text, at: m.at }; }
+    if (m.role === "user") { prompt = m.text; return { id: nextId("u"), role: "user", text: m.text, at: m.at, ...(m.images ? { imageCount: m.images } : {}) }; }
     return { ...initialTurn(nextId("a")), text: m.text, status: "completed", at: m.at, prompt };
   });
 };
@@ -153,10 +158,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!backend) return;
     const turnOf = () => chats()[bot.id]?.turns.find((t): t is AssistantTurn => t.id === aid && t.role === "assistant");
     const text = turnOf()?.prompt ?? "";
+    const input = buildInput(text, turnOf()?.attachments);
     patchChat(bot.id, (c) => ({ ...c, busy: true, error: undefined }));
     const finish = (a: Extract<TurnAction, { type: "done" }>, acc: string) => {
       patchChat(bot.id, (c) => ({ ...c, busy: false }));
       if (a.status === "completed") { cheer(bot.id); if (active.current === bot.id && appActive.current) doneHaptic(); }
+      if (!appActive.current && (a.status === "completed" || a.status === "failed")) void notifyDone(bot, a.status === "completed" ? plain(acc) || "Reply ready" : `Couldn't finish: ${a.error ?? "the run failed"}`);
       if (acc) setPreview((p) => ({ ...p, [bot.id]: plain(acc) }));
       touch(bot.id);
       if (active.current !== bot.id) setUnread((u) => ({ ...u, [bot.id]: (u[bot.id] ?? 0) + 1 }));
@@ -173,8 +180,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Batch stream events: at most one state update per frame however fast tokens arrive.
       let queue: TurnAction[] = []; let scheduled = false;
       const flush = () => { scheduled = false; if (!queue.length) return; const q = queue; queue = []; patchTurn(bot.id, aid, (t) => q.reduce(reduce, t)); };
-      aborts.current[bot.id] = backend.chat(bot).streamTurn(sid, text, (a) => {
-        if (ended) return; // `error` is followed by `done`/`run.failed`: the first terminal event wins
+      aborts.current[bot.id] = backend.chat(bot).streamTurn(sid, input, (a) => {
+        if (ended) return;
+        if (a.type === "approval" && !appActive.current) void notifyApproval(bot, aid, a.approval); // `error` is followed by `done`/`run.failed`: the first terminal event wins
         if (a.type === "delta") acc += a.text;
         if (a.type === "final" && a.text) acc = a.text;
         if (a.type === "done") {
@@ -182,7 +190,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const retry = !retried && a.status === "failed" ? retryReason(a.code) : null;
           if (retry) {
             queue = []; // nothing of this attempt reached the transcript; start the turn over
-            patchTurn(bot.id, aid, (t) => ({ ...initialTurn(aid), at: t.at, prompt: t.prompt, key: newRunKey() }));
+            patchTurn(bot.id, aid, (t) => ({ ...initialTurn(aid), at: t.at, prompt: t.prompt, attachments: t.attachments, key: newRunKey() }));
             void Promise.resolve(retry === "bot_chat" ? backend.abandonBotChat?.(bot) : backend.forgetSession?.(bot))
               .then(() => attempt(true)).catch(fail);
             return;
@@ -212,11 +220,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try { return recoverReply(parseMessages(await backend.chat(bot).messages(sid)), prompt); } catch { return undefined; }
   }, [backend]);
 
-  const send = useCallback(async (bot: Bot, text: string) => {
+  const send = useCallback(async (bot: Bot, text: string, images: { uri: string; dataUrl: string }[] = []) => {
     if (!backend) return;
     const aid = nextId("a"); const at = Date.now();
-    patchChat(bot.id, (c) => ({ ...c, turns: [...c.turns, { id: nextId("u"), role: "user", text, at }, { ...initialTurn(aid), at, prompt: text, key: newRunKey() }] }));
-    setPreview((p) => ({ ...p, [bot.id]: `You: ${plain(text)}` }));
+    const pics = images.length ? { images: images.map((i) => i.uri) } : {};
+    const attachments = images.length ? { attachments: images.map((i) => i.dataUrl) } : {};
+    patchChat(bot.id, (c) => ({ ...c, turns: [...c.turns, { id: nextId("u"), role: "user", text, at, ...pics }, { ...initialTurn(aid), at, prompt: text, key: newRunKey(), ...attachments }] }));
+    setPreview((p) => ({ ...p, [bot.id]: `You: ${plain(text) || "📷 Photo"}` }));
     touch(bot.id);
     await runTurn(bot, aid);
   }, [backend, patchChat, runTurn]);
@@ -225,8 +235,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
    *  same Idempotency-Key is reused, so Hermes replays that run rather than storing the message again. */
   const retry = useCallback(async (bot: Bot, turnId: string) => {
     const t = chats()[bot.id]?.turns.find((x): x is AssistantTurn => x.id === turnId && x.role === "assistant");
-    if (!t?.prompt || t.status === "streaming" || chats()[bot.id]?.busy) return;
-    patchTurn(bot.id, turnId, (x) => ({ ...initialTurn(turnId), at: x.at, prompt: x.prompt, key: retryReusesKey(x) && x.key ? x.key : newRunKey() }));
+    if ((!t?.prompt && !t?.attachments?.length) || t.status === "streaming" || chats()[bot.id]?.busy) return;
+    patchTurn(bot.id, turnId, (x) => ({ ...initialTurn(turnId), at: x.at, prompt: x.prompt, attachments: x.attachments, key: retryReusesKey(x) && x.key ? x.key : newRunKey() }));
     await runTurn(bot, turnId);
   }, [patchTurn, runTurn]);
 
@@ -298,6 +308,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     patchChat(bot.id, (x) => ({ ...x, busy: false }));
   }, [backend, patchChat, patchTurn]);
 
+  const steer = useCallback(async (bot: Bot, text: string) => {
+    const running = runningTurn(chats()[bot.id]?.turns ?? []);
+    if (!backend || !running || !canSteer(running)) throw new Error("This reply can't take additions. Send it as a new message.");
+    await backend.chat(bot).steer(running.runId!, text);
+    patchTurn(bot.id, running.id, (t) => (t.role === "assistant" ? { ...t, steers: [...(t.steers ?? []), text] } : t));
+  }, [backend, patchTurn]);
+
   const approve = useCallback(async (bot: Bot, turnId: string, choice: "once" | "deny") => {
     const t = chats()[bot.id]?.turns.find((x): x is AssistantTurn => x.id === turnId && x.role === "assistant");
     if (!backend || !t?.approval?.runId) throw new Error("This approval can't be answered from the phone yet.");
@@ -306,7 +323,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [backend, patchTurn]);
 
   const value = useMemo<Ctx>(() => ({
-    ready, demo, config, backend, bots, reloadBots, loadChat, send, retry, syncChat, setDraft, stop, approve, primaryId: primary, setPrimary,
+    ready, demo, config, backend, bots, reloadBots, loadChat, send, steer, retry, syncChat, setDraft, stop, approve, primaryId: primary, setPrimary,
     setActive: (id) => { active.current = id; if (id) setUnread((u) => ({ ...u, [id]: 0 })); },
     react: (id, emoji) => {
       setReactions((r) => { const n = { ...r }; if (emoji) n[id] = emoji; else delete n[id]; return n; });
@@ -314,7 +331,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     save: async (c) => { await saveConfig(c); await Store.deleteItem(DEMO_KEY); setConfig(c); setDemoState(BUILD_DEMO); },
     setDemo: async (on) => { on ? await Store.setItem(DEMO_KEY, "1") : await Store.deleteItem(DEMO_KEY); setDemoState(on || BUILD_DEMO); },
-  }), [ready, demo, config, backend, bots, reloadBots, loadChat, send, retry, syncChat, stop, approve, cheer, primary, setPrimary]);
+  }), [ready, demo, config, backend, bots, reloadBots, loadChat, send, steer, retry, syncChat, stop, approve, cheer, primary, setPrimary]);
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }
 
