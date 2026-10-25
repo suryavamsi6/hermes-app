@@ -32,6 +32,9 @@ if (await attach.count()) { await attach.click(); await shot("08-attach-sheet", 
 await say("Hermes", "flaky wifi: what's on my calendar?"); await shot("09-reconnecting", 1500);
 await p.waitForTimeout(9000);
 await go("/bot/pi-ops", 2500); await say("Pi Ops", "delete old logs"); await shot("10-approval", 2600);
+// Home while a run waits for your OK (in-app navigation keeps the live state), then back into the chat.
+const back = vis(p.getByLabel("Back to bots"));
+if (await back.count()) { await back.click(); await shot("10b-home-needs-ok", 1200); await vis(p.getByLabel(/^Open Pi Ops/)).click(); await p.waitForTimeout(1500); }
 const allow = vis(p.getByText(/^Allow once$/));
 if (await allow.count()) { await allow.click(); await shot("11-approval-allowed", 900); await p.waitForTimeout(4000); await shot("12-task-done", 200); }
 await go("/", 1500); await shot("13-home-after-activity", 200);

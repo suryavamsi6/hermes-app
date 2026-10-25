@@ -1,5 +1,41 @@
 # TODO (after the Oct 25, 2026 session)
 
+## v0.11.0 (versionCode 22): polish, personality and motion
+Shipped (evolution of the existing look: same palette, layouts, navigation, faces and backend):
+- **Motion system** (`src/ui/motion-tokens.ts`): press 90 ms, quick 140, base 200, sheet 240/180,
+  expression 280, one success hop; springs `press`/`gentle`/`pop`; `motionPolicy()` = Reduce Motion
+  turns off every loop and flourish, a hidden surface (backgrounded / covered screen) stops ambient loops.
+  `src/ui/live-surface.ts` gives one shared AppState, screen-focus and live Reduce Motion signal.
+- **Faces** (`bot-face.tsx`, `face-state.ts`): Reanimated shared values, no JS timers. Moods from real
+  state only: idle (blink / glance / breath at each bot's own uneven rhythm + random phase), listening
+  (composer focused or dictating), thinking, working (tool running or reply streaming), waiting
+  (approval pending or queued), success (reply finished / saved), error (concerned, not "napping").
+  Tap reaction on the hero, bot settings, new bot, empty chat and the face gallery.
+  Every mood also has words (header, Home rows, screen-reader label).
+- **Micro-interactions**: send button disabled → ready → stop/steer; sheets slide out on close;
+  toast confirmations (copy, routine actions, MCP connect/install); async Button (spinner → "Saved" +
+  check + haptic, toast on failure); optimistic switches that flip back with a toast on failure;
+  code-block copy confirmation; chevron + fade for tool steps.
+- **Agent activity**: tool-step pill with running / done / failed status and readable step list with
+  full output on tap; clearer approval card (paused-run explanation, spinner on the answer sent,
+  card only clears after Hermes accepts); Home rows and hero say "Needs your OK" / what the bot is
+  doing / "Needs attention".
+- **Fixes**: user/assistant bubbles no longer wrap at a narrow width (max width on the swipe wrapper);
+  streaming replies no longer flash an unfinished `**`/`` ` `` opener.
+- **Screens**: Home skeleton, routine actions as 40 pt buttons with delete confirmation, MCP rows say
+  On/Off and "token set" in words.
+- Screenshots: `docs/polish/before/` (v0.10.5), `docs/polish/after/`, `docs/polish/after-reduced-motion/`,
+  made with `docs/polish/shots.mjs` against the demo web export.
+
+Not verified / left:
+- Web preview screenshots only for most screens; motion timing, haptics and the sheet exit were not
+  felt on the S25. Check: faces on Home (no sync, calm), a long streaming reply (no jank), approval
+  flow, attach sheet, Reduce Motion ("Remove animations") on Android.
+- Faces in long lists keep idling while scrolled into view; they stop only when the screen is covered
+  or the app is in the background (FlatList unmounts far-offscreen rows).
+- No offline banner (no NetInfo dependency added); a lost connection still shows as the calm
+  "Reconnecting…" / "Couldn't reach Hermes" notes.
+
 ## v0.10.0 (versionCode 16): features checked against hermes-agent (Oct 14 build) and the bridge
 Shipped:
 - **Home "Today" card**: runs waiting for your OK, unread replies, bots working, routines whose last run failed.
