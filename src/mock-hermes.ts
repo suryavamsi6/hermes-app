@@ -4,6 +4,7 @@ import type { TurnAction } from "./chat-model";
 import type { ChatClient, OnAction } from "./hermes";
 import { HermesError } from "./errors";
 import { inputText, type TurnInput } from "./run-stream";
+import { skillDisplay } from "./slash";
 import type { ApprovalChoice } from "./chat-model";
 
 type Msg = { role: "user" | "assistant"; content: string; timestamp?: number };
@@ -92,7 +93,7 @@ export class MockHermesClient implements ChatClient {
     let cancelled = false;
     const runId = `run-${++this.runs}`;
     const images = typeof turnInput === "string" ? 0 : turnInput.filter((p) => p.type === "image_url").length;
-    const input = inputText(turnInput);
+    const raw = inputText(turnInput), input = skillDisplay(raw) ?? raw; // demo quotes "/skill arg", not the scaffold
     this.steers.set(runId, []);
     const emit = (a: TurnAction) => { if (!cancelled) onAction(a); };
     const session = this.sessions.find((s) => s.id === sessionId);
