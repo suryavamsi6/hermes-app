@@ -7,7 +7,7 @@
 // toolsets / memory settings go through the bridge.
 import { toJob } from "./job-text";
 import {
-  AVATAR_COLORS, AVATAR_EMOJI, type Backend, BOT_CHAT_TITLE, type Bot, type BridgeFeature, ComingSoonError, type Job,
+  AVATAR_COLORS, AVATAR_EMOJI, type Backend, BOT_CHAT_TITLE, type Bot, type BridgeFeature, CommandError, type CommandResult, ComingSoonError, type Job,
   type McpCatalogEntry, type McpServer, type MemoryStatus, type ModelOption, type PluginCatalog, type NewBot, type NewMcp, type Plugin, type SessionInfo, type Skill,
   STARTER_TOOLSETS, type Toolset,
 } from "./backend";
@@ -307,10 +307,49 @@ export class LiveBackend implements Backend {
       command: e.command ?? undefined, url: e.url ?? undefined }));
   }
   async installMcpCatalog(b: Bot, name: string, env: Record<string, string>) { await this.need("mcp").installMcpCatalog(b.profile, name, env); }
+  /** Slash commands with Hermes's own handlers, via hermes-bridge 0.4+ (see slash.ts). The gateway
+   *  runs them only in sessions it owns (each profile's Bot Chat); a profile-wide command typed in a
+   *  phone session runs in the Bot Chat instead, since its answer doesn't depend on the chat. */
+  async runCommand(b: Bot, sessionId: string, command: string, profileWide: boolean): Promise<CommandResult> {
+    const bridge = this.bridge;
+    if (!bridge) throw new CommandError({ kind: "no_bridge" });
+    const run = async (sid: string) => {
+      try { return await bridge.runCommand(b.profile, sid, command); } catch (e) { throw commandError(e); }
+    };
+    try { return await run(sessionId); }
+    catch (e) {
+      if (!(e instanceof CommandError) || e.failure.kind !== "not_owned" || !profileWide) throw e;
+      const botChat = await this.client(b).findSessionByTitle(BOT_CHAT_TITLE).catch(() => undefined);
+      if (!botChat || botChat === sessionId) throw e;
+      return { ...(await run(botChat)), ranIn: "bot-chat" };
+    }
+  }
+  /** Your quick commands and plugin commands from Hermes (bridge 0.4+); [] without one. */
+  async serverCommands(b: Bot) {
+    if (!this.bridge) return [];
+    try {
+      const r = await this.bridge.commands(b.profile);
+      return [...(r.commands ?? []).filter((c) => c.category === "User commands" || c.category === "Plugin commands"),
+        ...(r.plugin_commands ?? []).map((name) => ({ name, description: "" }))];
+    } catch { return []; }
+  }
+
   async setPluginEnabled(b: Bot, name: string, enabled: boolean) {
     try { await this.need("plugins").pluginAction(b.profile, name, enabled ? "enable" : "disable"); }
     catch (e) { if (e instanceof BridgeError && e.code === "plugin_toggle_unsupported") throw new Error(e.message); throw e; }
   }
+}
+
+/** A bridge error from /commands/run, as a CommandFailure. An older bridge has no such route (404 not_found). */
+export function commandError(e: unknown): CommandError {
+  if (e instanceof CommandError) return e;
+  if (e instanceof BridgeError) {
+    if (e.status === 404 && e.code === "not_found") return new CommandError({ kind: "old_bridge" });
+    if (e.code === "session_not_owned") return new CommandError({ kind: "not_owned" });
+    if (e.status === 0 || e.status === 503 || e.status === 502) return new CommandError({ kind: "unavailable", message: e.message });
+    return new CommandError({ kind: "refused", message: e.message });
+  }
+  return new CommandError({ kind: "unavailable", message: errText(e) });
 }
 
 // Hermes cron records (cron/jobs.py _normalize_job_record): id, name, prompt, schedule{expr,...},

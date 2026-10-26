@@ -1,7 +1,7 @@
 // Offline demo: three playful seeded bots, each with its own Bot Chat, routines, skills, toolsets,
 // memory, MCP servers and plugins. Everything is in memory; no network calls.
 import {
-  type Backend, BOT_CHAT_TITLE, type Bot, type Job, type McpCatalogEntry, type McpServer, type Memory, type NewBot, type Plugin, type PluginCatalog, type Skill, type Toolset,
+  type Backend, BOT_CHAT_TITLE, type Bot, type CommandResult, type Job, type McpCatalogEntry, type McpServer, type Memory, type NewBot, type Plugin, type PluginCatalog, type Skill, type Toolset,
 } from "./backend";
 import type { ChatClient } from "./hermes";
 import { MockHermesClient, type MockFlavor } from "./mock-hermes";
@@ -125,6 +125,25 @@ export class DemoBackend implements Backend {
   private current = new Map<string, string>();
   async botChatSession(b: Bot) { return this.current.get(b.id) ?? `chat-${b.id}`; }
   async newBotChat(b: Bot) { const id = await this.get(b).client.createSession(`${b.name} · new chat`); this.current.set(b.id, id); return id; }
+  /** Demo answers in the shape Hermes's handlers use (live: hermes-bridge runs the real ones). */
+  async runCommand(b: Bot, sessionId: string, command: string): Promise<CommandResult> {
+    await sleep(250);
+    const [name, ...rest] = command.slice(1).split(/\s+/);
+    const arg = rest.join(" ");
+    const yolo = (this.yolo[b.id] = name === "yolo" ? !this.yolo[b.id] : !!this.yolo[b.id]);
+    const out: Record<string, string> = {
+      status: `📊 **Hermes Gateway Status**\n\n**Session ID:** \`${sessionId}\`\n**Title:** ${BOT_CHAT_TITLE}\n**Model:** \`${b.model ?? "hermes-4"}\`\n**Tokens:** 12,480\n**Agent Running:** No\n\n_Demo mode: a live bot shows Hermes's real status._`,
+      version: "Hermes Agent (demo mode)",
+      whoami: "**You** — demo\nSlash commands: all available",
+      profile: `👤 **Profile:** \`${b.profile}\``,
+      yolo: yolo ? "⚡ YOLO mode **ON** for this session — all commands auto-approved. Use with caution." : "⚠️ YOLO mode **OFF** for this session — dangerous commands will require approval.",
+      title: arg ? `✏️ Session title set: **${arg}**` : `📌 Session: \`${sessionId}\`\nTitle: **${BOT_CHAT_TITLE}**`,
+      reasoning: arg ? `🧠 ✓ Reasoning effort set to \`${arg}\` (session only)` : "🧠 **Reasoning Settings**\n\n**Effort:** `medium (default)`\n**Display:** off",
+    };
+    if (name === "plan") return { type: "send", message: `[/plan — plan mode]\n\nFor this turn, you are in PLAN MODE — planning only.${arg ? `\n\nTask: ${arg}` : ""}` };
+    return { type: "exec", output: out[name] ?? `Demo mode: on a live bot, Hermes's own /${name} handler answers here (through hermes-bridge).` };
+  }
+  private yolo: Record<string, boolean> = {};
   async listSessions(b: Bot) {
     return [{ id: await this.botChatSession(b), title: BOT_CHAT_TITLE, updated: "now" },
       { id: `${b.id}-cron-1`, title: "Routine run · yesterday", updated: "yesterday" }, { id: `${b.id}-old`, title: "Older thread", updated: "last week" }];

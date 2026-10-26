@@ -1,6 +1,6 @@
 // App-wide state: backend (demo or live), the bot roster, and one continuous chat per bot.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Backend, Bot } from "./backend";
+import { type Backend, type Bot, CommandError, type CommandResult } from "./backend";
 import { AppState } from "react-native";
 import { buildInput, canSteer, runningTurn } from "./chat-tools";
 import { notifyApproval, notifyDone } from "./notify";
@@ -41,6 +41,10 @@ type Ctx = {
   newChat: (bot: Bot) => Promise<void>;
   /** Re-read the chat from Hermes if nothing is running (pull-to-refresh). */
   syncChat: (bot: Bot) => Promise<void>;
+  /** Run a slash command with Hermes's own handler in this bot's chat session. Throws CommandError. */
+  runCommand: (bot: Bot, command: string, profileWide: boolean) => Promise<CommandResult>;
+  /** Show a command and its answer in the chat, like Telegram does (this phone only). */
+  commandReply: (bot: Bot, typed: string, answer: string) => void;
   /** Unsent composer text per bot, kept across app restarts. */
   setDraft: (botId: string, text: string) => void;
   stop: (bot: Bot) => void;
@@ -268,7 +272,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const history = parseMessages(await backend.chat(bot).messages(sid));
       const now = chats()[bot.id];
       if (now?.busy) return;
-      const shown = (now?.turns ?? []).filter((t) => t.role === "user" || t.status === "completed").map((t) => (t as { raw?: string }).raw ?? t.text);
+      const shown = (now?.turns ?? []).filter((t) => !t.local && (t.role === "user" || t.status === "completed")).map((t) => (t as { raw?: string }).raw ?? t.text);
       const same = shown.length === history.length && history.every((m, i) => m.text === shown[i]);
       if (same) return;
       patchChat(bot.id, (x) => ({ ...x, sessionId: sid, turns: toTurns(history), error: undefined }));
@@ -352,8 +356,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await loadChat(bot, true);
   }, [backend, loadChat]);
 
+  const runCommand = useCallback(async (bot: Bot, command: string, profileWide: boolean) => {
+    if (!backend?.runCommand) throw new CommandError({ kind: "no_bridge" });
+    const sid = chats()[bot.id]?.sessionId ?? (await backend.botChatSession(bot));
+    return backend.runCommand(bot, sid, command, profileWide);
+  }, [backend]);
+  const commandReply = useCallback((bot: Bot, typed: string, answer: string) => {
+    const at = Date.now();
+    patchChat(bot.id, (c) => ({ ...c, turns: [...c.turns, { id: nextId("u"), role: "user", text: typed, at, local: true },
+      { ...initialTurn(nextId("a")), text: answer, status: "completed", at, local: true }] }));
+    touch(bot.id, at);
+  }, [patchChat]);
+
   const value = useMemo<Ctx>(() => ({
-    ready, demo, config, backend, bots, reloadBots, loadChat, newChat, send, steer, retry, syncChat, setDraft, stop, approve, primaryId: primary, setPrimary,
+    ready, demo, config, backend, bots, reloadBots, loadChat, newChat, runCommand, commandReply, send, steer, retry, syncChat, setDraft, stop, approve, primaryId: primary, setPrimary,
     setActive: (id) => { active.current = id; if (id) setUnread((u) => ({ ...u, [id]: 0 })); },
     react: (id, emoji) => {
       setReactions((r) => { const n = { ...r }; if (emoji) n[id] = emoji; else delete n[id]; return n; });
@@ -361,7 +377,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     save: async (c) => { await saveConfig(c); await Store.deleteItem(DEMO_KEY); setConfig(c); setDemoState(BUILD_DEMO); },
     setDemo: async (on) => { on ? await Store.setItem(DEMO_KEY, "1") : await Store.deleteItem(DEMO_KEY); setDemoState(on || BUILD_DEMO); },
-  }), [ready, demo, config, backend, bots, reloadBots, loadChat, newChat, send, steer, retry, syncChat, stop, approve, cheer, primary, setPrimary]);
+  }), [ready, demo, config, backend, bots, reloadBots, loadChat, newChat, runCommand, commandReply, send, steer, retry, syncChat, stop, approve, cheer, primary, setPrimary]);
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }
 

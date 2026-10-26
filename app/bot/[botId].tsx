@@ -11,11 +11,11 @@ import { Alert, Animated, FlatList, Image, KeyboardAvoidingView, type NativeScro
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { restoreDraft, setDraftText, useApp, useBot, useChat, useHasApproval, useMood, useReaction, useReconnecting } from "../../src/app-state";
 import { moodLabel, turnMood } from "../../src/ui/face-state";
-import type { Bot } from "../../src/backend";
+import { type Bot, CommandError } from "../../src/backend";
 import type { AssistantTurn, Turn, UserTurn } from "../../src/chat-model";
 import type { Attachment, FileAttachment } from "../../src/attach";
 import { ChatFollow } from "../../src/chat-follow";
-import { catalog as slashCatalog, explain, resolveSlash, skillDisplay, skillMessage } from "../../src/slash";
+import { catalog as slashCatalog, explain, failureNote, resolveSlash, type SlashAction, skillDisplay, skillMessage } from "../../src/slash";
 import { pieces, scrollsSideways } from "../../src/text-safety";
 import { canSteer as steerable, chatToMarkdown, editableLast, findMatches, runningTurn } from "../../src/chat-tools";
 import { clearBotNotifications } from "../../src/notify";
@@ -291,7 +291,7 @@ const AWAY = 320; // px scrolled up from the newest message before the jump butt
 export default function BotChatScreen() {
   const { botId } = useLocalSearchParams<{ botId: string }>();
   const bot = useBot(botId);
-  const { loadChat, newChat, send, steer, retry, syncChat, stop, approve, setActive, react, bots, backend, reloadBots } = useApp();
+  const { loadChat, newChat, runCommand, commandReply, send, steer, retry, syncChat, stop, approve, setActive, react, bots, backend, reloadBots } = useApp();
   const insets = useSafeAreaInsets();
   const [composerH, setComposerH] = useState(76);
   const list = useRef<FlatList<ChatRow>>(null);
@@ -385,17 +385,22 @@ export default function BotChatScreen() {
   }, [bot, steer, toLatest]);
   const onStop = useCallback(() => { if (bot) stop(bot); }, [bot, stop]);
 
-  // Slash commands (src/slash.ts): Hermes's API server doesn't run them, so the app does.
+  // Slash commands (src/slash.ts): every command Telegram takes. The app runs some itself; the rest run
+  // with Hermes's own handlers through hermes-bridge (runCommand), and their answer shows in the chat.
   const skills = useLoad(bot && backend && !bot.needsKey ? () => backend.listSkills(bot).catch(() => []) : null, [bot?.id, backend]);
-  const commands = useMemo(() => slashCatalog(skills.data ?? []), [skills.data]);
+  const serverCmds = useLoad(bot && backend?.serverCommands && !bot.needsKey ? () => backend.serverCommands!(bot) : null, [bot?.id, backend]);
+  const commands = useMemo(() => slashCatalog(skills.data ?? [], serverCmds.data ?? []), [skills.data, serverCmds.data]);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 10000); return () => clearTimeout(t); }, [note]);
   const [modelQuery, setModelQuery] = useState("");
   const onSlash = (text: string, images: Attachment[], files: FileAttachment[]): "sent" | "done" | "kept" | false => {
     if (!bot) return false;
-    const a = resolveSlash(text, skills.data ?? []);
+    const a = resolveSlash(text, skills.data ?? [], serverCmds.data ?? []);
     if (!a) return false;
     setNote(null);
+    return act(bot, a, text.trim(), images, files);
+  };
+  const act = (bot: Bot, a: SlashAction, typed: string, images: Attachment[] = [], files: FileAttachment[] = []): "sent" | "done" | "kept" => {
     const running = runningTurn(turns);
     switch (a.type) {
       case "help": setTimeout(() => setDraftText(bot.id, "/"), 0); return "done";
@@ -432,6 +437,37 @@ export default function BotChatScreen() {
         return "done";
       }
       case "skill": onSend(skillMessage(a.name, a.arg), images, files); return "sent";
+      case "rename":
+        if (!backend?.updateSession) { setNote("Renaming isn't available here."); return "done"; }
+        void (async () => backend.updateSession!(bot, chat.sessionId ?? (await backend.botChatSession(bot)), { title: a.title }))()
+          .then(() => setNote(`Chat renamed to "${a.title}".`), (e: any) => setNote(`Couldn't rename the chat: ${String(e?.message ?? e)}`));
+        return "done";
+      case "restart":
+        if (!backend?.restartGateway || !backend.supports("mcp")) { setNote("/restart needs hermes-bridge on your server. Add it in Settings."); return "done"; }
+        Alert.alert("Restart Hermes's gateway?", "Hermes finishes running replies first. Every chat on this server pauses for a moment.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Restart", style: "destructive", onPress: () => void backend.restartGateway!().then(() => setNote("Hermes's gateway is restarting."), (e: any) => setNote(`Couldn't restart: ${String(e?.message ?? e)}`)) },
+        ]);
+        return "done";
+      case "hermes": {
+        const name = a.command.split(/\s/)[0];
+        setNote(`Running ${name}…`);
+        void runCommand(bot, a.command, a.profileWide).then((r) => {
+          setNote(null);
+          if (r.type === "send") {
+            if (chat.busy) setNote(`Wait for this reply to finish, then run ${name} again.`); else onSend(r.message);
+            return;
+          }
+          const answer = (r.output.trim() || "Done.") + (r.ranIn === "bot-chat" ? "\n\n_Ran in the Bot Chat (this chat is a separate phone session)._" : "");
+          // While a reply is streaming, the answer goes in the note so the running turn stays last.
+          if (chat.busy) setNote(answer.replace(/[*_`]/g, "")); else commandReply(bot, typed, answer);
+        }, (e: any) => {
+          const f = e instanceof CommandError ? e.failure : { kind: "unavailable" as const, message: String(e?.message ?? e) };
+          if (a.fallback && f.kind !== "refused") { setNote(null); act(bot, a.fallback, typed); return; }
+          setNote(failureNote(a.name, f));
+        });
+        return "done";
+      }
       default: setNote(explain(a)); return "kept";
     }
   };
