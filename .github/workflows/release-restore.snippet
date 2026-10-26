@@ -1,0 +1,6 @@
+      - run: npm ci --legacy-peer-deps
+        if: steps.check.outputs.skip != 'true'
+      - run: node scripts/restore-slash.mjs
+        if: steps.check.outputs.skip != 'true'
+      - run: npx tsc --noEmit
+        if: steps.check.outputs.skip != 'true'
