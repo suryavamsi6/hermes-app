@@ -8,7 +8,7 @@ import type { AssistantTurn, Turn } from "../../src/chat-model";
 import type { Attachment, FileAttachment } from "../../src/attach";
 import { ChatFollow } from "../../src/chat-follow";
 import { catalog as slashCatalog, explain, failureNote, resolveSlash, skillMessage, type SlashAction } from "../../src/slash";
-import { CommandError } from "../../src/backend";
+import { CommandError, type Bot } from "../../src/backend";
 import { canSteer as steerable, chatToMarkdown, editableLast, findMatches, runningTurn } from "../../src/chat-tools";
 import { clearBotNotifications } from "../../src/notify";
 import { buildRows, chatBody, type ChatRow } from "../../src/ui/chat-rows";
@@ -102,26 +102,76 @@ export default function BotChatScreen() {
     const a = resolveSlash(text, skills.data ?? [], serverCmds.data ?? []);
     if (!a) return false;
     setNote(null);
+    return act(bot, a, text.trim(), images, files);
+  };
+  const act = (bot: Bot, a: SlashAction, typed: string, images: Attachment[] = [], files: FileAttachment[] = []): "sent" | "done" | "kept" => {
     const running = runningTurn(turns);
     const busy = chat.busy;
-    const say = (s: string) => setNote(s);
     switch (a.type) {
       case "help": setTimeout(() => setDraftText(bot.id, "/"), 0); return "done";
-      case "status": say(`${bot.name} \u00b7 ${bot.profile} \u00b7 ${bot.model ?? "default"}`); return "done";
-      case "stop": if (busy) stop(bot); else say("Nothing is running."); return "done";
-      case "retry": if (busy) say("Wait for this reply to finish."); else if (lastAssistant?.prompt) void retry(bot, lastAssistant.id); else say("Nothing to run again yet."); return "done";
-      case "steer": if (running && steerable(running)) void onSteer(a.text); else say("Nothing is running."); return "done";
-      case "approve": if (lastAssistant?.approval && lastAssistant.status === "streaming") void approve(bot, lastAssistant.id, a.choice); else say("Nothing is waiting."); return "done";
+      case "status": {
+        const where = backend?.kind === "demo" ? "demo mode" : backend?.supports("mcp") ? "API server + bridge" : "API server";
+        setNote(`${bot.name} \u00b7 profile ${bot.profile} \u00b7 model ${bot.model ?? "profile default"}${bot.provider ? ` (${bot.provider})` : ""} \u00b7 ${where}${busy ? " \u00b7 working" : ""}`);
+        return "done";
+      }
+      case "stop": if (busy) stop(bot); else setNote("Nothing is running."); return "done";
+      case "retry":
+        if (busy) setNote("Wait for this reply to finish, or /stop it first.");
+        else if (lastAssistant?.prompt) void retry(bot, lastAssistant.id);
+        else setNote("Nothing to run again yet.");
+        return "done";
+      case "steer":
+        if (running && steerable(running)) void onSteer(a.text); else setNote("Nothing is running. Send it as a normal message instead.");
+        return "done";
+      case "approve":
+        if (lastAssistant?.approval && lastAssistant.status === "streaming") void approve(bot, lastAssistant.id, a.choice);
+        else setNote("Nothing is waiting for your OK.");
+        return "done";
       case "model": setModelQuery(a.query); setModelSheet(true); return "done";
-      case "new": if (busy) say("Wait for this reply to finish."); else void newChat(bot).then(() => say("New chat started."), (e: any) => say(String(e?.message ?? e))); return "done";
+      case "new":
+        if (busy) { setNote("Wait for this reply to finish, or /stop it first."); return "done"; }
+        void newChat(bot).then(() => setNote("New chat started. The previous one is under Topics & sessions."),
+          (e: any) => setNote(`Couldn't start a new chat: ${String(e?.message ?? e)}`));
+        return "done";
       case "search": startSearch(); return "done";
       case "export": exportChat(); return "done";
-      case "open": { const to = { settings: `/bot-info/${bot.id}`, skills: `/bot-info/${bot.id}`, mcp: `/mcp/${bot.id}`, plugins: `/plugins/${bot.id}`, memory: `/memory/${bot.id}`, routines: `/routines?bot=${bot.id}`, topics: `/history/${bot.id}`, activity: `/activity/${bot.id}`, call: `/call/${bot.id}` }[a.screen]; router.push(to as any); return "done"; }
+      case "open": {
+        const to = { settings: `/bot-info/${bot.id}`, skills: `/bot-info/${bot.id}`, mcp: `/mcp/${bot.id}`, plugins: `/plugins/${bot.id}`, memory: `/memory/${bot.id}`, routines: `/routines?bot=${bot.id}`, topics: `/history/${bot.id}`, activity: `/activity/${bot.id}`, call: `/call/${bot.id}` }[a.screen];
+        router.push(to as any);
+        return "done";
+      }
       case "skill": onSend(skillMessage(a.name, a.arg), images, files); return "sent";
-      case "rename": if (!backend.updateSession) { say("Renaming isn't available here."); return "done"; } void backend.updateSession(bot, chat.sessionId ?? "", { title: a.title }).then(() => say("Renamed."), (e: any) => say(String(e?.message ?? e))); return "done";
-      case "restart": say("/restart needs the server bridge."); return "done";
-      case "hermes": say(`Running ${a.command.split(/\s/)[0]}`); void runCommand(bot, a.command, a.profileWide).then((r) => { setNote(null); if (r.type === "send") onSend(r.message); else commandReply(bot, text.trim(), r.output.trim() || "Done."); }, (e: any) => setNote(e instanceof CommandError ? failureNote(a.name, e.failure) : String(e?.message ?? e))); return "done";
-      default: say(explain(a)); return "kept";
+      case "rename":
+        if (!backend?.updateSession) { setNote("Renaming isn't available here."); return "done"; }
+        void (async () => backend.updateSession!(bot, chat.sessionId ?? (await backend.botChatSession(bot)), { title: a.title }))()
+          .then(() => setNote(`Chat renamed to "${a.title}".`), (e: any) => setNote(`Couldn't rename the chat: ${String(e?.message ?? e)}`));
+        return "done";
+      case "restart":
+        if (!backend?.restartGateway || !backend.supports("mcp")) { setNote("/restart needs hermes-bridge on your server. Add it in Settings."); return "done"; }
+        Alert.alert("Restart Hermes's gateway?", "Hermes finishes running replies first. Every chat on this server pauses for a moment.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Restart", style: "destructive", onPress: () => void backend.restartGateway!().then(() => setNote("Hermes's gateway is restarting."), (e: any) => setNote(`Couldn't restart: ${String(e?.message ?? e)}`)) },
+        ]);
+        return "done";
+      case "hermes": {
+        const name = a.command.split(/\s/)[0];
+        setNote(`Running ${name}\u2026`);
+        void runCommand(bot, a.command, a.profileWide).then((r) => {
+          setNote(null);
+          if (r.type === "send") {
+            if (chat.busy) setNote(`Wait for this reply to finish, then run ${name} again.`); else onSend(r.message);
+            return;
+          }
+          const answer = (r.output.trim() || "Done.") + (r.ranIn === "bot-chat" ? "\n\n_Ran in the Bot Chat (this chat is a separate phone session)._" : "");
+          if (chat.busy) setNote(answer.replace(/[*_`]/g, "")); else commandReply(bot, typed, answer);
+        }, (e: any) => {
+          const f = e instanceof CommandError ? e.failure : { kind: "unavailable" as const, message: String(e?.message ?? e) };
+          if (a.fallback && f.kind !== "refused") { setNote(null); act(bot, a.fallback, typed); return; }
+          setNote(failureNote(a.name, f));
+        });
+        return "done";
+      }
+      default: setNote(explain(a)); return "kept";
     }
   };
   useEffect(() => { if (!bot) return; void restoreDraft(bot.id); setActive(bot.id); clearBotNotifications(bot.id); if (chat.loaded) void syncChat(bot); else void loadChat(bot); return () => setActive(null); }, [bot?.id]);
@@ -141,7 +191,7 @@ export default function BotChatScreen() {
           </View>
         ) : (
           <View style={{ flex: 1 }}>
-            <FlatList ref={list} data={rows} keyExtractor={(r) => r.key} renderItem={render} inverted maintainVisibleContentPosition={follow.current!.anchor()} onScroll={onScroll} scrollEventThrottle={64} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 14, paddingTop: bottomInset + 12, paddingBottom: topInset + 12, gap: 18 }} />
+            <FlatList ref={list} data={rows} keyExtractor={(r) => r.key} renderItem={render} inverted maintainVisibleContentPosition={follow.current!.anchor()} onScroll={onScroll} scrollEventThrottle={64} keyboardShouldPersistTaps="handled" removeClippedSubviews={false} contentContainerStyle={{ paddingHorizontal: 14, paddingTop: bottomInset + 12, paddingBottom: topInset + 12, gap: 18 }} />
             {away ? <JumpButton unseen={unseen} onPress={jump} bottom={bottomInset + 12} /> : null}
           </View>
         )}

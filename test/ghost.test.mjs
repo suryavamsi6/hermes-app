@@ -25,8 +25,6 @@ test("every real message splits into pieces small enough to draw", () => {
     const ps = m.pieces(text);
     if (text.length > m.PIECE) assert.ok(ps.length >= 2, `${msg.role} ${text.length} chars should split`);
     for (const p of ps) {
-      // A code fence is sized by its line count (it never wraps long text into extra height), so a
-      // fence-only piece may hold more characters as long as it stays within PIECE_LINES.
       const fenceOnly = /^```[^\n]*\n[\s\S]*\n```$/.test(p) && (p.match(/^```/gm) ?? []).length === 2;
       if (!fenceOnly) assert.ok(p.length <= m.PIECE, `piece of ${p.length} chars`);
       assert.ok(p.split("\n").length <= m.PIECE_LINES + 2, "piece line count");
@@ -64,7 +62,7 @@ test("one enormous paragraph splits at sentence or word breaks", () => {
 });
 
 test("the chat renders replies and user messages as pieces, not one giant view", () => {
-  const chat = readFileSync("app/bot/[botId].tsx", "utf8");
+  const chat = readFileSync("app/bot/bits.tsx", "utf8");
   assert.match(chat, /<Markdown text=\{t\.text\}[^>]*wrap=\{/, "reply bubble uses Markdown's piece wrapper");
   assert.match(chat, /pieces\(t\.text\)/, "user bubble is split into pieces");
   assert.doesNotMatch(chat, /<MarkedText text=\{t\.text\}/, "no whole-message Text in a user bubble");
@@ -73,12 +71,6 @@ test("the chat renders replies and user messages as pieces, not one giant view",
   assert.match(md, /clipLong\(tidy\)/, "the 6k Show-the-rest guard stays");
 });
 
-// v0.11.3: the root cause, reproduced on an Android emulator with the fixture above (the v0.11.1 APK with
-// only the JS swapped): the tall messages alone render fine. The blank box appears only with a code block
-// (or table) in a shrink-to-fit bubble: the horizontal ScrollView makes Android lay the bubble out far
-// taller than its content, so it shows as an empty grey card that also overlaps the message above. Even
-// a 3-line code block between two short paragraphs did it. v0.11.2 only escaped it for this reply because
-// its code had long lines and now wraps. Bubbles with a sideways block now get a fixed width.
 test("replies with a sideways-scrolling block get a fixed-width bubble", () => {
   const short = "Here you go:\n\n```\nabc def\nghi jkl\nmno\n```\n\nThat's the short version.";
   const table = "Totals:\n\n| Category | Spent |\n|---|---:|\n| Food | 120 |\n\nAll under budget.";
@@ -91,7 +83,7 @@ test("replies with a sideways-scrolling block get a fixed-width bubble", () => {
   assert.strictEqual(m.scrollsSideways(wrapped), false, "code that wraps doesn't scroll");
   const reply = fx.find((x) => x.content.includes("```"));
   assert.strictEqual(typeof m.scrollsSideways(reply.content), "boolean");
-  const chat = readFileSync("app/bot/[botId].tsx", "utf8");
+  const chat = readFileSync("app/bot/bits.tsx", "utf8");
   assert.match(chat, /const wide = !!t\.text && scrollsSideways\(t\.text\);/);
   assert.match(chat, /style=\{wide \? \{ width: "94%" \} : \{ maxWidth: "94%" \}\}/);
 });
