@@ -29,6 +29,8 @@ export type AssistantTurn = {
   local?: boolean;
   /** Added text Hermes never got to before the run ended (offered as a new message). */
   pendingSteer?: string;
+  /** Mid-turn commentary sealed into its own bubble (Telegram sends these immediately). */
+  note?: boolean;
 };
 export type UserTurn = { id: string; role: "user"; text: string; at?: number;
   /** Local image URIs shown in the bubble (this phone only). */
@@ -48,6 +50,9 @@ export type Turn = UserTurn | AssistantTurn;
 export type TurnAction =
   | { type: "delta"; text: string }
   | { type: "final"; text: string } // assistant.completed: the server's final text wins over the streamed deltas
+  // message.interim: mid-turn commentary Telegram sends as its own message. alreadyStreamed means the
+  // text also arrived as deltas and must not be appended a second time.
+  | { type: "interim"; text: string; alreadyStreamed: boolean }
   | { type: "tool"; phase: "started" | "completed" | "failed"; tool: string; preview?: string }
   | { type: "approval"; approval: Approval }
   | { type: "run"; runId: string }
@@ -84,11 +89,47 @@ export function reduce(t: AssistantTurn, a: TurnAction): AssistantTurn {
       const steps = t.steps.map((s, i) => (i === real ? { ...s, status: phase, result: a.preview } : s));
       return { ...t, steps, approval: undefined };
     }
+    case "interim":
+      return t; // a stream event, not a single-turn edit: applyStream seals it into its own bubble
     case "done":
       if (t.status !== "streaming") return t; // first terminal event wins (error is followed by done/run.failed)
       return { ...t, status: a.status, error: a.error, errorCode: a.code, approval: undefined, reconnecting: false, ...(a.pendingSteer ? { pendingSteer: a.pendingSteer } : {}),
+        // An empty bubble opened for the next note is not a reply of its own.
+        ...(t.text.trim() ? {} : { note: true }),
         steps: t.steps.map((s) => (s.status === "running" ? { ...s, status: a.status === "completed" ? "completed" : "failed" } : s)) };
   }
+}
+
+/** Apply one frame of stream events. A message.interim seals the open reply as its own bubble and
+ *  opens a fresh one, so mid-turn notes show immediately instead of waiting for the final answer. */
+export function applyStream(turns: Turn[], anchorId: string, actions: TurnAction[], freshId: () => string, at = Date.now()): Turn[] {
+  const anchor = turns.findIndex((t) => t.id === anchorId && t.role === "assistant");
+  if (anchor === -1) return turns;
+  let end = anchor;
+  while (end + 1 < turns.length && turns[end + 1].role === "assistant" && (turns[end + 1] as AssistantTurn).status === "streaming") end++;
+  const head = turns.slice(0, anchor);
+  const segment = turns.slice(anchor, end + 1) as AssistantTurn[];
+  const tail = turns.slice(end + 1);
+  let open = segment.length - 1;
+  const out = [...segment];
+  const seal = (i: number, text: string): AssistantTurn =>
+    ({ ...out[i], ...(text ? { text } : {}), status: "completed", note: true, thought: undefined, reconnecting: false });
+  for (const a of actions) {
+    if (a.type !== "interim") { out[open] = reduce(out[open], a); continue; }
+    const cur = out[open];
+    const prev = open > 0 ? out[open - 1] : undefined;
+    if (prev?.note && prev.text.trim() === a.text) continue; // redelivered after the note was already sealed
+    const shown = cur.text.trim();
+    const same = shown === a.text || (a.alreadyStreamed && (shown === a.text || shown.endsWith(a.text)));
+    out[open] = { ...seal(open, shown ? "" : a.text), text: shown || a.text };
+    if (shown && !same) {
+      out.push({ ...initialTurn(freshId()), at, text: a.alreadyStreamed ? "" : a.text, prompt: cur.prompt, key: cur.key, runId: cur.runId });
+      open = out.length - 1;
+    }
+    out.push({ ...initialTurn(freshId()), at, prompt: cur.prompt, key: cur.key, runId: cur.runId });
+    open = out.length - 1;
+  }
+  return [...head, ...out, ...tail];
 }
 
 /** Map one SSE event from POST /api/sessions/{id}/chat/stream to actions. Shapes follow hermes-agent
@@ -104,6 +145,10 @@ export function toAction(event: string, raw: string): TurnAction[] {
   const runId = s("run_id", "runId");
   if (runId) out.push({ type: "run", runId });
   if (event === "assistant.delta" || event === "message.delta") out.push({ type: "delta", text: s("delta", "text", "content") ?? (typeof d === "string" ? d : "") });
+  else if (event === "message.interim") {
+    const text = (s("text", "content") ?? "").trim();
+    if (text) out.push({ type: "interim", text, alreadyStreamed: d?.already_streamed === true });
+  }
   else if (event === "reasoning.available") out.push({ type: "thought", text: s("text", "content") ?? "" });
   else if (event === "assistant.completed") out.push({ type: "final", text: s("content") ?? "" });
   else if (/^tool\.(started|completed|failed)$/.test(event))
@@ -123,40 +168,3 @@ export function toAction(event: string, raw: string): TurnAction[] {
   else if (event === "error") out.push({ type: "done", status: "failed", error: s("message", "error") ?? "the run failed", code: s("code") });
   return out;
 }
-
-/** Hermes /messages rows -> plain user/assistant text with optional ms timestamps. */
-export type HistoryMessage = { role: "user" | "assistant"; text: string; at?: number; images?: number };
-export function parseMessages(r: any): HistoryMessage[] {
-  const list: any[] = Array.isArray(r) ? r : r?.messages ?? r?.data ?? [];
-  return list
-    .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
-    .map((m) => {
-      const parts: any[] = typeof m.content === "string" ? [] : Array.isArray(m.content) ? m.content : [];
-      const images = parts.filter((p) => p && (p.type === "image_url" || p.type === "input_image" || p.type === "image")).length;
-      const text = typeof m.content === "string" ? m.content : parts.map((p) => p?.text ?? "").join("");
-      return { role: m.role, text, at: toMs(m.timestamp ?? m.created_at), ...(images ? { images } : {}) };
-    })
-    .filter((m) => m.text.trim() || m.images); // whitespace-only rows would render as empty bubbles
-}
-/** Hermes stores message timestamps as unix seconds (float); accept ms or ISO too. */
-function toMs(v: unknown): number | undefined {
-  if (typeof v === "number" && isFinite(v)) return v < 1e12 ? v * 1000 : v;
-  if (typeof v === "string") { const n = Number(v); if (isFinite(n) && v.trim()) return toMs(n); const d = Date.parse(v); return isNaN(d) ? undefined : d; }
-  return undefined;
-}
-
-/** After a turn lost its connection for good, find its answer in the session history: the assistant
- *  text after the latest user message equal to `prompt` (and before the next user message). */
-export function recoverReply(history: { role: "user" | "assistant"; text: string }[], prompt: string): string | undefined {
-  let i = -1;
-  for (let k = history.length - 1; k >= 0; k--) if (history[k].role === "user" && history[k].text.trim() === prompt.trim()) { i = k; break; }
-  if (i === -1) return undefined;
-  let reply: string | undefined;
-  for (let k = i + 1; k < history.length && history[k].role === "assistant"; k++) reply = history[k].text;
-  return reply;
-}
-
-/** Retry after a lost connection reuses the turn's Idempotency-Key: Hermes replays the run it may
- *  already have started instead of storing the message twice. Any other failure (an error, an
- *  interrupted or forgotten run, a cancel) is a fresh attempt and gets a new key. */
-export const retryReusesKey = (t: Pick<AssistantTurn, "status" | "errorCode">) => t.status === "failed" && t.errorCode === "connection_lost";
