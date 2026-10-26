@@ -22,9 +22,9 @@ test("sending always scrolls to the newest message, even from far up", () => {
     f.sent();
     assert.strictEqual(scrolls(), 1, `immediate scroll from ${y}`);
     assert.strictEqual(f.anchor(), undefined, "no pinning while the send scrolls down");
-    f.rowsChanged(); // your message rendered
+    f.rowsChanged();
     assert.strictEqual(scrolls(), 2, `scrolls again once the row exists (from ${y})`);
-    f.rowsChanged(); // streamed tokens: no extra forced scrolls
+    f.rowsChanged();
     assert.strictEqual(scrolls(), 2);
   }
 });
@@ -60,7 +60,7 @@ test("if you scroll up before your message renders, the late row doesn't drag yo
 });
 
 test("the chat screen wires sends and steers to the follower", () => {
-  const chat = readFileSync("app/bot/[botId].tsx", "utf8");
+  const chat = readFileSync("app/bot/screen.tsx", "utf8");
   assert.match(chat, /maintainVisibleContentPosition=\{follow\.current!\.anchor\(\)\}/);
   assert.doesNotMatch(chat, /autoscrollToTopThreshold/);
   const send = chat.slice(chat.indexOf("const onSend"), chat.indexOf("const onStop"));

@@ -12,7 +12,7 @@ const ROW_FILES = ["src/ui/activity-row.tsx", "src/ui/steps-row.tsx", "src/ui/ap
 
 test("chat row components have no layout animations", () => {
   for (const f of ROW_FILES) assert.ok(!LAYOUT_ANIM.test(readFileSync(f, "utf8")), `${f} uses entering/exiting/layout`);
-  const chat = readFileSync("app/bot/[botId].tsx", "utf8");
+  const chat = readFileSync("app/bot/bits.tsx", "utf8");
   // Everything from the row components down to the jump button (which floats outside the list).
   const rows = chat.slice(chat.indexOf("function SwipeQuote"), chat.indexOf("function JumpButton"));
   assert.ok(rows.length > 1000, "row section not found");
@@ -20,7 +20,7 @@ test("chat row components have no layout animations", () => {
 });
 
 test("the chat list keeps rows as plain cells (no clipped subviews)", () => {
-  const chat = readFileSync("app/bot/[botId].tsx", "utf8");
+  const chat = readFileSync("app/bot/screen.tsx", "utf8");
   assert.match(chat, /removeClippedSubviews=\{false\}/);
 });
 
@@ -41,6 +41,6 @@ test("v0.11.1 composer: the left '+' is the only attach control; Plugins lives i
   assert.ok(plus > 0 && plus < field, "'+' should sit left of (outside) the text box");
   assert.ok(/<Plus\b/.test(src) && /title="Photos"/.test(src) && /title="Camera"/.test(src) && /title="Files"|Files/.test(src));
   assert.ok(!/entering=|exiting=/.test(src));
-  const chat = readFileSync("app/bot/[botId].tsx", "utf8");
+  const chat = readFileSync("app/bot/screen.tsx", "utf8");
   assert.ok(/label="Plugins"[^\n]*\/plugins\//.test(chat), "Plugins should be reachable from the chat menu");
 });
