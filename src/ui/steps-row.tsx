@@ -1,11 +1,10 @@
 // The tool calls Hermes made while writing a reply. One quiet pill in the chat: a status icon,
 // "3 steps · terminal, web_search" and a chevron. Tap it, or swipe it right, to open the steps on
 // their own page (it slides in from the right). Nothing expands inside the chat, so rows stay short.
-// botId and turnId are optional so the existing chat row can keep passing steps only.
 import { router } from "expo-router";
 import { ChevronRight, CircleCheck, CircleX, LoaderCircle } from "lucide-react-native";
 import { useRef } from "react";
-import { Animated, PanResponder, Pressable, Text } from "react-native";
+import { Animated, PanResponder, Pressable, Text, View } from "react-native";
 import type { Step } from "../chat-model";
 import { setStepsPage } from "./steps-page";
 import { tapHaptic } from "./haptics";
@@ -19,15 +18,14 @@ function StatusIcon({ status, size = 14 }: { status: Step["status"]; size?: numb
   return <CircleCheck size={size} color={colors.success} />;
 }
 
-export function StepsRow({ steps, botId = "chat", turnId }: { steps: Step[]; botId?: string; turnId?: string }) {
+export function StepsRow({ steps, botId, turnId }: { steps: Step[]; botId: string; turnId: string }) {
   const failed = steps.some((s) => s.status === "failed");
   const running = steps.some((s) => s.status === "running");
   const text = summary(steps);
-  const id = turnId ?? steps.map((s) => s.id).join("-") || "steps";
   const open = () => {
     tapHaptic();
-    setStepsPage(botId, id, steps);
-    router.push(`/steps/${encodeURIComponent(botId)}/${encodeURIComponent(id)}`);
+    setStepsPage(botId, turnId, steps);
+    router.push(`/steps/${encodeURIComponent(botId)}/${encodeURIComponent(turnId)}`);
   };
   const x = useRef(new Animated.Value(0)).current;
   const responder = useRef(PanResponder.create({
