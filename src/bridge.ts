@@ -27,6 +27,7 @@ export type BridgeCatalogPlugin = { name: string; title?: string | null; descrip
   category?: string | null; version?: string | null; installed?: boolean; update_available?: boolean; requires_env?: string[]; provides_tools?: string[] };
 export type BridgeMcpCatalogEntry = { name: string; description?: string; transport?: string; auth_type?: string;
   required_env?: { name: string; prompt?: string; required?: boolean }[]; installed?: boolean; enabled?: boolean; command?: string | null; url?: string | null };
+export type BridgeCommand = { name: string; description: string; category: string; aliases: string[] };
 export type BridgeMemory = { active: string; providers: { name: string; description: string; available: boolean; configured: boolean; status?: string }[]; builtin_files: { memory?: number; user?: number } };
 
 const enc = encodeURIComponent;
@@ -92,4 +93,11 @@ export class BridgeClient {
   installMcpCatalog(profile: string, name: string, env: Record<string, string>) { return this.req("POST", this.p(profile, "/mcp-catalog/install"), { name, env, enable: true }); }
 
   memory(profile: string) { return this.req<BridgeMemory>("GET", this.p(profile, "/memory")); }
+
+  /** Hermes's command list for the profile (bridge 0.4+: GET /v1/profiles/<p>/commands). */
+  commands(profile: string) { return this.req<{ commands: BridgeCommand[]; plugin_commands?: string[] }>("GET", this.p(profile, "/commands")); }
+  /** Run a slash command with Hermes's own handler in the gateway that owns the session (bridge 0.4+). */
+  runCommand(profile: string, sessionId: string, command: string) {
+    return this.req<{ type: "exec"; output: string } | { type: "send"; message: string }>("POST", this.p(profile, "/commands/run"), { session_id: sessionId, command });
+  }
 }

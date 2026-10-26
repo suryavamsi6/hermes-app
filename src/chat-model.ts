@@ -25,6 +25,8 @@ export type AssistantTurn = {
   raw?: string;
   /** Text the user added while the reply was being written (POST /v1/runs/{id}/steer). */
   steers?: string[];
+  /** A command's answer shown in this chat only (Hermes doesn't store command replies in the transcript). */
+  local?: boolean;
   /** Added text Hermes never got to before the run ended (offered as a new message). */
   pendingSteer?: string;
 };
@@ -38,7 +40,9 @@ export type UserTurn = { id: string; role: "user"; text: string; at?: number;
   /** A gateway notification Hermes stored as a user turn: shown as an event chip, not a bubble. */
   notice?: { title: string; body: string };
   /** The message exactly as Hermes stores it (when the shown text differs). */
-  raw?: string };
+  raw?: string;
+  /** A command you ran (its answer is a local assistant turn); not part of Hermes's transcript. */
+  local?: boolean };
 export type Turn = UserTurn | AssistantTurn;
 
 export type TurnAction =

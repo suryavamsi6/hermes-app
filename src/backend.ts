@@ -3,6 +3,7 @@
 // plugins, cron, skills, memory settings). DemoBackend is fully offline.
 import type { EyeStyle, ShapeId } from "./appearance";
 import type { ChatClient } from "./hermes";
+import type { CommandFailure, ServerCommand } from "./slash";
 
 export type Bot = {
   id: string;            // stable app id
@@ -54,6 +55,14 @@ export type BridgeFeature = "createBot" | "editPersona" | "deleteBot" | "toggleT
 /** Thrown in live mode when a feature needs hermes-bridge and no bridge key is set. */
 export class ComingSoonError extends Error {
   constructor(public feature: BridgeFeature) { super(`${feature} needs hermes-bridge on your Hermes server. Add its key in Settings.`); }
+}
+
+/** A command run by Hermes's own handler: text to show (markdown), or a prompt to send as the next
+ *  turn (/plan, /learn, ...). `ranIn: "bot-chat"`: run in the profile's Bot Chat for you. */
+export type CommandResult = ({ type: "exec"; output: string } | { type: "send"; message: string }) & { ranIn?: "bot-chat" };
+/** Why a Hermes command didn't run (see slash.ts failureNote). */
+export class CommandError extends Error {
+  constructor(public failure: CommandFailure) { super("message" in failure ? failure.message : failure.kind); }
 }
 
 export interface Backend {
@@ -121,6 +130,12 @@ export interface Backend {
   /** Install a catalog MCP; `env` holds the values for the variables the entry declares. */
   installMcpCatalog?(b: Bot, name: string, env: Record<string, string>): Promise<void>;
   setPluginEnabled(b: Bot, name: string, enabled: boolean): Promise<void>;
+  /** Run a slash command with Hermes's own handler (live: hermes-bridge 0.4+, which reaches the
+   *  gateway that owns `sessionId`). `profileWide`: may run in the profile's Bot Chat instead when the
+   *  gateway doesn't own `sessionId`. Throws CommandError. */
+  runCommand?(b: Bot, sessionId: string, command: string, profileWide: boolean): Promise<CommandResult>;
+  /** Commands the server adds for this bot (quick commands, plugin commands); [] when unknown. */
+  serverCommands?(b: Bot): Promise<ServerCommand[]>;
 }
 
 export const BOT_CHAT_TITLE = "Bot Chat";
