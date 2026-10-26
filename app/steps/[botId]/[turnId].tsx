@@ -4,6 +4,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { Step } from "../../../src/chat-model";
+import { useChat } from "../../../src/app-state";
 import { toolPhrase } from "../../../src/ui/activity";
 import { useStepsPage } from "../../../src/ui/steps-page";
 import { Empty, Screen } from "../../../src/ui/kit";
@@ -14,8 +15,10 @@ const DOT = { running: colors.accentText, completed: colors.success, failed: col
 
 export default function StepsScreen() {
   const { botId, turnId } = useLocalSearchParams<{ botId: string; turnId: string }>();
-  const open = useStepsPage(String(botId ?? ""), String(turnId ?? ""));
-  const steps = open?.steps ?? [];
+  const id = String(turnId ?? "");
+  const live = useChat(String(botId ?? "")).turns.find((t) => t.id === id && t.role === "assistant");
+  const open = useStepsPage(String(botId ?? ""), id);
+  const steps = (live && "steps" in live && live.steps.length ? live.steps : open?.steps) ?? [];
   const failed = steps.filter((s) => s.status === "failed").length;
   return (
     <Screen title="Steps" subtitle={steps.length ? `${steps.length} ${steps.length === 1 ? "step" : "steps"}${failed ? ` · ${failed} failed` : ""}` : "This reply"}>

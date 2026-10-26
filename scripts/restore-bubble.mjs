@@ -1,0 +1,10 @@
+import { readFileSync, writeFileSync, readdirSync } from "node:fs";
+const dir = "scripts/bubble-b64";
+const names = readdirSync(dir).filter((n) => n.endsWith(".txt")).sort();
+const take = (prefix) => names.filter((n) => n.startsWith(prefix)).map((n) => readFileSync(`${dir}/${n}`, "utf8").replace(/\s/g, "")).join("");
+const bits = take("bits0") + take("app__bot__bits.tsx.");
+if (!bits.startsWith("aW1wb3J0")) throw new Error("bits payload missing");
+writeFileSync("app/bot/bits.tsx", Buffer.from(bits, "base64"));
+writeFileSync("src/chat-model.ts", Buffer.from(take("src__chat-model.ts."), "base64"));
+writeFileSync("src/ui/steps-row.tsx", Buffer.from(take("src__ui__steps-row.tsx."), "base64"));
+writeFileSync("test/sse.test.mjs", Buffer.from(take("test__sse.test.mjs."), "base64"));
