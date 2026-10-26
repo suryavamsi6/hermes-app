@@ -69,7 +69,7 @@ export function editableLast(turns: Turn[]): { userId: string; text: string } | 
   return undefined;
 }
 
-/** The reply that's still being written (the one steering text goes to). A sealed note is not it. */
+/** The reply that's still being written (the one steering text goes to). */
 export function runningTurn(turns: Turn[]): AssistantTurn | undefined {
   for (let i = turns.length - 1; i >= 0; i--) {
     const t = turns[i];
