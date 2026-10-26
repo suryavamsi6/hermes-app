@@ -30,6 +30,7 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: node scripts/restore-slash.mjs
       - run: node scripts/restore-app-state.mjs
+      - run: node scripts/restore-bubble.mjs
       - run: npx tsc --noEmit
       - run: npm test
         env:
