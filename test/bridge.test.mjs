@@ -19,13 +19,13 @@ const { LiveBackend } = await import("../node_modules/.cache/hm-live/live-bridge
 const BASE = "https://homelab.tail0000.ts.net";
 const MAIN = "main-key-0123456789";
 const realFetch = globalThis.fetch;
-let stack, bridgeUrl, bridgeKey, calls, hermesKeys, sessions;
+let stack, bridgeUrl, bridgeKey, hasGateway, calls, hermesKeys, sessions;
 
 before(async () => {
   if (skip) return;
   stack = spawn("python3", ["test/bridge_stack.py"], { env: { ...process.env, HERMES_BRIDGE_SRC: SRC }, stdio: ["pipe", "pipe", "inherit"] });
   const line = await new Promise((res) => createInterface({ input: stack.stdout }).once("line", res));
-  ({ bridge: bridgeUrl, key: bridgeKey } = JSON.parse(line));
+  ({ bridge: bridgeUrl, key: bridgeKey, gateway: hasGateway } = JSON.parse(line));
 });
 after(() => { stack?.stdin.end(); stack?.kill(); });
 
@@ -162,4 +162,18 @@ test("Without a bridge key: no bridge calls, manual add only", { skip }, async (
   await assert.rejects(be.createBot({ name: "x", emoji: "x", color: "#000", description: "", toolsets: [] }), /hermes-bridge/);
   await assert.rejects(be.listMcp({ profile: "default" }), /hermes-bridge/);
   assert.strictEqual(calls.filter((c) => c.to === "bridge").length, 0);
+});
+
+// v0.11.6: slash commands run by Hermes's own handlers, through the real bridge and its fake gateway.
+test("slash commands: Hermes's handler answers through the bridge; your server's commands join the picker", { skip: skip || false }, async (t) => {
+  if (!hasGateway) return t.skip("this hermes-bridge has no gateway support (0.4+)");
+  const live = new LiveBackend(cfg());
+  const bot = { id: "default", profile: "default", name: "Hermes" };
+  assert.deepStrictEqual(await live.runCommand(bot, "local-0123456789abcdef", "/title Trip plans", false), { type: "exec", output: "ran /title Trip plans" });
+  assert.deepStrictEqual(await live.runCommand(bot, "local-0123456789abcdef", "/plan ship it", true), { type: "send", message: "[/plan] plan it: ship it" });
+  await assert.rejects(live.runCommand(bot, "api_1_abc", "/yolo", false), (e) => e.failure?.kind === "not_owned");
+  assert.deepStrictEqual((await live.serverCommands(bot)).map((c) => c.name), ["deploy", "weather"]);
+  const bridgeCalls = calls.filter((c) => c.to === "bridge");
+  assert.ok(bridgeCalls.every((c) => c.auth === `Bearer ${bridgeKey}`), "bridge key only");
+  assert.ok(calls.filter((c) => c.to === "hermes").every((c) => c.auth !== `Bearer ${bridgeKey}`), "never to Hermes");
 });

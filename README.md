@@ -9,7 +9,7 @@ It talks to Hermes's own API server. Nothing goes through a third-party service,
 
 **Website:** <https://suryavamsi6.github.io/hermes-app/>
 
-> Status: early, personal project, **Android only** (v0.11.5). It's used daily against a real Hermes, but
+> Status: early, personal project, **Android only** (v0.11.6). It's used daily against a real Hermes, but
 > expect rough edges. Issues and PRs welcome.
 
 | Home | Working | Tool steps | Approval |
@@ -44,12 +44,13 @@ Screenshots come from the built-in demo mode with sample bots (Atlas, Forge, Nov
 - **Attachments.** The **+** button opens Photos, Camera or Files. Images go as inline images, text files
   (code, CSV, JSON, Markdown…) as inline text blocks.
 - **Steer or stop** a running reply: type while it's working to add to it, or tap stop.
-- **Slash commands.** Type `/` for a list you can filter and tap: `/status`, `/stop`, `/retry`, `/steer`,
-  `/approve`, `/model`, `/new` (a fresh chat; the old one stays under Topics), `/search`, `/export`,
-  shortcuts to screens (`/cron`, `/mcp`, `/memory`…), and the bot's own skills (`/server-health check the NAS`
-  asks the bot to load and follow that skill). Hermes's API server doesn't run commands, so the app runs these
-  itself. Commands that only Hermes's own chat can run (`/compress`,
-  `/undo`, `/yolo`…) get a short note instead of being sent to the model. Start with `//` to send `/text` as is.
+- **Slash commands: the ones Telegram has.** Type `/` for every command with a description, filtered as you
+  type. Commands that Hermes runs itself (`/status`, `/title`, `/yolo`, `/reasoning`, `/plan`, `/goal`…)
+  run with Hermes's own handler, the one Telegram uses, through
+  [hermes-bridge](https://github.com/suryavamsi6/hermes-bridge) 0.4+, and the answer shows in the chat. The
+  app does the rest itself (`/new`, `/stop`, `/retry`, `/model`…), and your skills (`/server-health check the
+  NAS`), quick commands and plugin commands work too. See [Slash commands](#slash-commands) for the full list.
+  Start with `//` to send `/text` as is.
 - **Gateway notices** (a background job finished, a routine delivered, a reply from another bot) show as
   small chips in the chat; tap to read them.
 - **Routines** (Hermes cron jobs): list, run now, pause, resume, delete.
@@ -231,6 +232,47 @@ Signing uses four repository secrets: `ANDROID_KEYSTORE_BASE64` (the keystore, b
 `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. In a fork, set your own. Every push and PR also runs
 [`ci.yml`](.github/workflows/ci.yml) (typecheck + tests).
 
+## Slash commands
+
+Every command Hermes's Telegram gateway accepts (its command registry at the tested Hermes build), and how
+the app runs it. Hermes's API server doesn't take commands, so a message starting with `/` is never sent to
+the model as text.
+
+**Hermes runs it** (Hermes's own handler, through hermes-bridge 0.4+; the answer appears as a reply):
+`/status`, `/title [name]`, `/context` (`/ctx`), `/usage`, `/insights [days]`, `/help`, `/commands`,
+`/plan [task]`, `/goal`, `/subgoal`, `/loop` (`/proactive`), `/heartbeat` (`/hb`), `/review`, `/refine`,
+`/moa <prompt>`, `/learn`, `/init`, `/blueprint` (`/bp`), `/suggestions` (`/suggest`), `/kanban`, `/curator`,
+`/yolo`, `/approvals`, `/reasoning`, `/fast`, `/personality`, `/verbose`, `/footer`, `/busy`, `/voice`,
+`/codex-runtime`, `/autoprune`, `/skills`, `/memory`, `/bundles`, `/whoami`, `/profile`, `/version` (`/v`),
+`/diff`, `/egress`, `/login`, `/topup`, `/debug`. Also your `quick_commands` and plugin commands.
+Commands like `/plan` and `/learn` come back as a prompt, which the app sends as your next message.
+
+**The app runs it**: `/new` (`/reset`, `/clear`) starts a fresh chat; `/stop`, `/retry`, `/steer` (`/s`),
+`/approve`, `/deny` act on the running reply; `/model` opens the model picker; `/sessions`, `/resume` and
+`/topic` open Topics & sessions; `/save` shares the chat as Markdown; `/reload-mcp` opens MCP servers;
+`/restart` restarts Hermes's gateway through the bridge (it asks first). App extras: `/search`, `/export`,
+`/topics`, `/tools`, `/mcp`, `/plugins`, `/routines` (`/cron`), `/activity`, `/settings`, `/call`.
+
+**Not from the app** (typed, they get a short note and aren't sent):
+
+| Command | Why |
+|---|---|
+| `/compress`, `/undo`, `/branch`, `/queue`, `/agents`, `/rollback`, `/pause`, `/discard`, `/reload-skills`, `/platform`, `/update` | Hermes's gateway refuses them for any client except its CLI and messaging chats. Hermes still compresses long chats by itself. |
+| `/bg`, `/btw` | Hermes answers them later as a separate event, which the app can't receive yet. |
+| `/sethome` | Marks a messaging chat as the home channel; the app isn't a messaging channel. |
+| `/start` | Telegram's "bot opened" ping; nothing to do in the app. |
+
+**Where commands run.** Hermes runs commands in chats its gateway owns: each bot's **Bot Chat**, the chat
+the app uses by default. A chat started with `/new` is a separate phone session. There, commands about Hermes
+as a whole (`/version`, `/help`, `/memory`, `/approvals`…) run in the Bot Chat for you; commands about the
+chat itself (`/status`, `/yolo`, `/reasoning`…) say to open the Bot Chat from Topics & sessions. `/title
+<name>` renames a phone session directly.
+
+**Without hermes-bridge 0.4+** (no bridge, an older one, or a gateway the bridge can't reach), commands
+that Hermes runs show a note saying what's needed. A few fall back to the app's own version: `/status`
+shows the app's status line, `/title <name>` renames the chat, `/help` and `/commands` open the list,
+`/memory`, `/skills`, `/usage` and `/insights` open their screens.
+
 ## Hermes features: supported or not
 
 | Hermes feature | In the app |
@@ -246,7 +288,8 @@ Signing uses four repository secrets: `ANDROID_KEYSTORE_BASE64` (the keystore, b
 | Older sessions, search, export | ✅ |
 | Desktop/CLI-owned sessions | Read-only history; the phone keeps its own "Bot Chat" session per bot |
 | Push notifications when the app is closed | ❌ (no push server) |
-| Kanban, messaging-platform setup, terminal, file browser, config editing | ❌ (use Hermes's own dashboard or CLI) |
+| Slash commands | ✅ Telegram's list; Hermes's own handlers through hermes-bridge 0.4+ (see [Slash commands](#slash-commands)) |
+| Messaging-platform setup, terminal, file browser, config editing | ❌ (use Hermes's own dashboard or CLI) |
 | iOS | ❌ not built or tested |
 
 ## Troubleshooting
