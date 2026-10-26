@@ -9,7 +9,7 @@ It talks to Hermes's own API server. Nothing goes through a third-party service,
 
 **Website:** <https://suryavamsi6.github.io/hermes-app/>
 
-> Status: early, personal project, **Android only** (v0.11.4). It's used daily against a real Hermes, but
+> Status: early, personal project, **Android only** (v0.11.5). It's used daily against a real Hermes, but
 > expect rough edges. Issues and PRs welcome.
 
 | Home | Working | Tool steps | Approval |
@@ -45,10 +45,11 @@ Screenshots come from the built-in demo mode with sample bots (Atlas, Forge, Nov
   (code, CSV, JSON, Markdown…) as inline text blocks.
 - **Steer or stop** a running reply: type while it's working to add to it, or tap stop.
 - **Slash commands.** Type `/` for a list you can filter and tap: `/status`, `/stop`, `/retry`, `/steer`,
-  `/approve`, `/model`, `/search`, `/export`, shortcuts to screens (`/cron`, `/mcp`, `/memory`…), and the bot's
-  own skills (`/server-health check the NAS` asks the bot to load and follow that skill). Hermes's API server
-  doesn't run commands, so the app runs these itself. Commands that only Hermes's own chat can run (`/compress`,
-  `/reset`, `/yolo`…) get a short note instead of being sent to the model. Start with `//` to send `/text` as is.
+  `/approve`, `/model`, `/new` (a fresh chat; the old one stays under Topics), `/search`, `/export`,
+  shortcuts to screens (`/cron`, `/mcp`, `/memory`…), and the bot's own skills (`/server-health check the NAS`
+  asks the bot to load and follow that skill). Hermes's API server doesn't run commands, so the app runs these
+  itself. Commands that only Hermes's own chat can run (`/compress`,
+  `/undo`, `/yolo`…) get a short note instead of being sent to the model. Start with `//` to send `/text` as is.
 - **Gateway notices** (a background job finished, a routine delivered, a reply from another bot) show as
   small chips in the chat; tap to read them.
 - **Routines** (Hermes cron jobs): list, run now, pause, resume, delete.
