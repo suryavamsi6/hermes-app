@@ -1,0 +1,17 @@
+  const chat = readFileSync("app/bot/screen.tsx", "utf8");
+  assert.match(chat, /commands=\{commands\} onSlash=\{onSlash\}/);
+  assert.match(chat, /case "skill": onSend\(skillMessage\(a\.name, a\.arg\), images, files\); return "sent";/);
+});
+
+// v0.11.5: /new opened Topics in v0.11.4 (an alias of /topics). It now starts a fresh chat in place.
+test("/new, /reset and /clear start a fresh chat; /topics and /history still open Topics", () => {
+  for (const t of ["/new", "/NEW", "/reset", "/clear"]) assert.deepStrictEqual(m.resolveSlash(t), { type: "new" }, t);
+  for (const t of ["/topics", "/history", "/sessions", "/resume", "/topic"]) assert.deepStrictEqual(m.resolveSlash(t), { type: "open", screen: "topics" }, t);
+  const cat = m.catalog();
+  assert.strictEqual(cat.find((c) => c.name === "new").description, "Start a fresh chat with this bot");
+  assert.ok(!cat.find((c) => c.name === "topics").aliases.includes("new"));
+  assert.strictEqual(m.filterCommands(cat, "new")[0].name, "new");
+  assert.strictEqual(m.filterCommands(cat, "reset")[0].name, "new");
+  assert.strictEqual(m.routeOf("reset"), "app");
+
+  const chat = readFileSync("app/bot/screen.tsx", "utf8");
