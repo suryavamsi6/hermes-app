@@ -70,6 +70,9 @@ export interface Backend {
   botChatSession(b: Bot): Promise<string>;
   /** Live only: the profile's Bot Chat refused a phone turn; use a phone session from now on. */
   abandonBotChat?(b: Bot): Promise<void>;
+  /** /new: start a fresh session for this bot's chat and chat there from now on. The old session
+   *  stays on the server (it shows under Topics & sessions). Returns the new session id. */
+  newBotChat?(b: Bot): Promise<string>;
   /** Live only: the stored session id no longer exists on the server. */
   forgetSession?(b: Bot): Promise<void>;
   /** Live only: verify /p/<profile>/ is served and `apiKey` is that profile's key; throws a readable error. */

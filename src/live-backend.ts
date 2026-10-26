@@ -163,6 +163,18 @@ export class LiveBackend implements Backend {
     await Store.setItem(OWN_KEY(b.profile), "1");
     await Store.deleteItem(CHAT_KEY(b.profile));
   }
+  /** /new: a fresh session ("<name> · <date time>", untitled if that title is taken) becomes this
+   *  bot's chat. Nothing on the server is renamed or archived. */
+  async newBotChat(b: Bot) {
+    const c = this.client(b);
+    const d = new Date(), p = (n: number) => String(n).padStart(2, "0");
+    const title = `${(b.name || b.profile).trim()} · ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    let id: string;
+    try { id = await c.createSession(title); }
+    catch (e) { if (!titleTaken(e)) throw e; id = await c.createSession(); }
+    await Store.setItem(CHAT_KEY(b.profile), id);
+    return id;
+  }
   /** Forget a stored session id that no longer exists. */
   async forgetSession(b: Bot) { await Store.deleteItem(CHAT_KEY(b.profile)); }
 

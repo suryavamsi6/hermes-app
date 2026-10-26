@@ -122,7 +122,9 @@ export class DemoBackend implements Backend {
   async updateBot(b: Bot) { this.get(b).bot = b; return b; }
   async removeBot(id: string) { this.data = this.data.filter((d) => d.bot.id !== id || id === "atlas"); }
   chat(b: Bot): ChatClient { return this.get(b).client; }
-  async botChatSession(b: Bot) { return `chat-${b.id}`; }
+  private current = new Map<string, string>();
+  async botChatSession(b: Bot) { return this.current.get(b.id) ?? `chat-${b.id}`; }
+  async newBotChat(b: Bot) { const id = await this.get(b).client.createSession(`${b.name} · new chat`); this.current.set(b.id, id); return id; }
   async listSessions(b: Bot) {
     return [{ id: await this.botChatSession(b), title: BOT_CHAT_TITLE, updated: "now" },
       { id: `${b.id}-cron-1`, title: "Routine run · yesterday", updated: "yesterday" }, { id: `${b.id}-old`, title: "Older thread", updated: "last week" }];

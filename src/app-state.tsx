@@ -37,6 +37,8 @@ type Ctx = {
   steer: (bot: Bot, text: string) => Promise<void>;
   /** Retry a failed/stopped assistant turn in place. */
   retry: (bot: Bot, turnId: string) => Promise<void>;
+  /** /new: start a fresh session for this bot and show it (empty). Throws if it can't. */
+  newChat: (bot: Bot) => Promise<void>;
   /** Re-read the chat from Hermes if nothing is running (pull-to-refresh). */
   syncChat: (bot: Bot) => Promise<void>;
   /** Unsent composer text per bot, kept across app restarts. */
@@ -343,8 +345,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     patchTurn(bot.id, turnId, (x) => ({ ...x, approval: undefined }));
   }, [backend, patchTurn]);
 
+  const newChat = useCallback(async (bot: Bot) => {
+    if (!backend?.newBotChat) throw new Error("Starting a new chat isn't available here.");
+    if (chats()[bot.id]?.busy) throw new Error("Wait for this reply to finish, or /stop it first.");
+    await backend.newBotChat(bot);
+    await loadChat(bot, true);
+  }, [backend, loadChat]);
+
   const value = useMemo<Ctx>(() => ({
-    ready, demo, config, backend, bots, reloadBots, loadChat, send, steer, retry, syncChat, setDraft, stop, approve, primaryId: primary, setPrimary,
+    ready, demo, config, backend, bots, reloadBots, loadChat, newChat, send, steer, retry, syncChat, setDraft, stop, approve, primaryId: primary, setPrimary,
     setActive: (id) => { active.current = id; if (id) setUnread((u) => ({ ...u, [id]: 0 })); },
     react: (id, emoji) => {
       setReactions((r) => { const n = { ...r }; if (emoji) n[id] = emoji; else delete n[id]; return n; });
@@ -352,7 +361,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     save: async (c) => { await saveConfig(c); await Store.deleteItem(DEMO_KEY); setConfig(c); setDemoState(BUILD_DEMO); },
     setDemo: async (on) => { on ? await Store.setItem(DEMO_KEY, "1") : await Store.deleteItem(DEMO_KEY); setDemoState(on || BUILD_DEMO); },
-  }), [ready, demo, config, backend, bots, reloadBots, loadChat, send, steer, retry, syncChat, stop, approve, cheer, primary, setPrimary]);
+  }), [ready, demo, config, backend, bots, reloadBots, loadChat, newChat, send, steer, retry, syncChat, stop, approve, cheer, primary, setPrimary]);
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }
 
