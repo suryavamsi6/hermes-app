@@ -1,1 +1,81 @@
-PLACEHOLDER_APP
+{
+  "expo": {
+    "name": "Hermes",
+    "slug": "surya",
+    "scheme": "hermes",
+    "version": "0.11.8",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#09090b",
+    "android": {
+      "package": "home.surya.hermesmobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#09090b"
+      },
+      "versionCode": 30,
+      "allowBackup": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "./plugins/with-high-refresh-rate",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Hermes uses the microphone to turn your speech into text.",
+          "speechRecognitionPermission": "Hermes turns your speech into text on this phone.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as"
+          ]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pick photos to send to your bot.",
+          "cameraPermission": "Take a photo to send to your bot."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#09090b"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 96,
+          "resizeMode": "contain",
+          "backgroundColor": "#09090b"
+        }
+      ]
+    ],
+    "icon": "./assets/icon.png",
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "baa598c3-3119-4985-8bb1-927c10370602"
+      }
+    },
+    "owner": "suryavamsi06s-team"
+  }
+}
