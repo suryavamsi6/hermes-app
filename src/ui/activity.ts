@@ -82,14 +82,15 @@ export const phraseDelay = (rand: () => number = Math.random) => 4000 + Math.rou
 
 /** Which rotating pool applies to a still-working reply, or null when there's a concrete line to show. */
 export function idleKind(t: AssistantTurn): IdleKind | null {
-  if (t.status !== "streaming" || t.text || t.reconnecting || t.approval || t.thought) return null;
+  if (t.status !== "streaming" || t.text || t.note || t.reconnecting || t.approval || t.thought) return null;
   if (t.steps.some((s) => s.status === "running")) return null;
   return t.steps.length ? "wrapup" : "start";
 }
 
 /** The status line, or null when the reply text is already showing (or the turn is done). */
 export function activityLine(t: AssistantTurn): string | null {
-  if (t.status !== "streaming" || t.text) return null;
+  // A sealed note keeps its tool steps; the live line belongs to the still-open reply.
+  if (t.status !== "streaming" || t.text || t.note) return null;
   if (t.reconnecting) return null; // the calm "Reconnecting…" note covers it
   if (t.approval) return "Waiting for your OK";
   for (let i = t.steps.length - 1; i >= 0; i--) if (t.steps[i].status === "running") return toolPhrase(t.steps[i].tool, t.steps[i].preview);

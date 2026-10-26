@@ -29,6 +29,8 @@ export type AssistantTurn = {
   local?: boolean;
   /** Added text Hermes never got to before the run ended (offered as a new message). */
   pendingSteer?: string;
+  /** Mid-turn commentary sealed into its own bubble (Telegram sends these immediately). */
+  note?: boolean;
 };
 export type UserTurn = { id: string; role: "user"; text: string; at?: number;
   /** Local image URIs shown in the bubble (this phone only). */
@@ -48,6 +50,9 @@ export type Turn = UserTurn | AssistantTurn;
 export type TurnAction =
   | { type: "delta"; text: string }
   | { type: "final"; text: string } // assistant.completed: the server's final text wins over the streamed deltas
+  // message.interim: mid-turn commentary Telegram sends as its own message. alreadyStreamed means the
+  // text also arrived as deltas and must not be appended a second time.
+  | { type: "interim"; text: string; alreadyStreamed: boolean }
   | { type: "tool"; phase: "started" | "completed" | "failed"; tool: string; preview?: string }
   | { type: "approval"; approval: Approval }
   | { type: "run"; runId: string }
@@ -84,11 +89,47 @@ export function reduce(t: AssistantTurn, a: TurnAction): AssistantTurn {
       const steps = t.steps.map((s, i) => (i === real ? { ...s, status: phase, result: a.preview } : s));
       return { ...t, steps, approval: undefined };
     }
+    case "interim":
+      return t; // a stream event, not a single-turn edit: applyStream seals it into its own bubble
     case "done":
       if (t.status !== "streaming") return t; // first terminal event wins (error is followed by done/run.failed)
       return { ...t, status: a.status, error: a.error, errorCode: a.code, approval: undefined, reconnecting: false, ...(a.pendingSteer ? { pendingSteer: a.pendingSteer } : {}),
+        // An empty bubble opened for the next note is not a reply of its own.
+        ...(t.text.trim() ? {} : { note: true }),
         steps: t.steps.map((s) => (s.status === "running" ? { ...s, status: a.status === "completed" ? "completed" : "failed" } : s)) };
   }
+}
+
+/** Apply one frame of stream events. A message.interim seals the open reply as its own bubble and
+ *  opens a fresh one, so mid-turn notes show immediately instead of waiting for the final answer. */
+export function applyStream(turns: Turn[], anchorId: string, actions: TurnAction[], freshId: () => string, at = Date.now()): Turn[] {
+  const anchor = turns.findIndex((t) => t.id === anchorId && t.role === "assistant");
+  if (anchor === -1) return turns;
+  let end = anchor;
+  while (end + 1 < turns.length && turns[end + 1].role === "assistant" && (turns[end + 1] as AssistantTurn).status === "streaming") end++;
+  const head = turns.slice(0, anchor);
+  const segment = turns.slice(anchor, end + 1) as AssistantTurn[];
+  const tail = turns.slice(end + 1);
+  let open = segment.length - 1;
+  const out = [...segment];
+  const seal = (i: number, text: string): AssistantTurn =>
+    ({ ...out[i], ...(text ? { text } : {}), status: "completed", note: true, thought: undefined, reconnecting: false });
+  for (const a of actions) {
+    if (a.type !== "interim") { out[open] = reduce(out[open], a); continue; }
+    const cur = out[open];
+    const prev = open > 0 ? out[open - 1] : undefined;
+    if (prev?.note && prev.text.trim() === a.text) continue; // redelivered after the note was already sealed
+    const shown = cur.text.trim();
+    const same = shown === a.text || (a.alreadyStreamed && (shown === a.text || shown.endsWith(a.text)));
+    out[open] = { ...seal(open, shown ? "" : a.text), text: shown || a.text };
+    if (shown && !same) {
+      out.push({ ...initialTurn(freshId()), at, text: a.alreadyStreamed ? "" : a.text, prompt: cur.prompt, key: cur.key, runId: cur.runId });
+      open = out.length - 1;
+    }
+    out.push({ ...initialTurn(freshId()), at, prompt: cur.prompt, key: cur.key, runId: cur.runId });
+    open = out.length - 1;
+  }
+  return [...head, ...out, ...tail];
 }
 
 /** Map one SSE event from POST /api/sessions/{id}/chat/stream to actions. Shapes follow hermes-agent
@@ -104,6 +145,10 @@ export function toAction(event: string, raw: string): TurnAction[] {
   const runId = s("run_id", "runId");
   if (runId) out.push({ type: "run", runId });
   if (event === "assistant.delta" || event === "message.delta") out.push({ type: "delta", text: s("delta", "text", "content") ?? (typeof d === "string" ? d : "") });
+  else if (event === "message.interim") {
+    const text = (s("text", "content") ?? "").trim();
+    if (text) out.push({ type: "interim", text, alreadyStreamed: d?.already_streamed === true });
+  }
   else if (event === "reasoning.available") out.push({ type: "thought", text: s("text", "content") ?? "" });
   else if (event === "assistant.completed") out.push({ type: "final", text: s("content") ?? "" });
   else if (/^tool\.(started|completed|failed)$/.test(event))

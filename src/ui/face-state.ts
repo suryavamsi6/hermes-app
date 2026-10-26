@@ -16,7 +16,7 @@ export const FACE_MOODS: FaceMood[] = ["idle", "listening", "thinking", "working
 type ChatLike = { busy: boolean; error?: string; turns: Turn[] } | undefined;
 
 function lastAssistant(turns: Turn[] | undefined): AssistantTurn | undefined {
-  for (let i = (turns?.length ?? 0) - 1; i >= 0; i--) { const t = turns![i]; if (t.role === "assistant") return t; }
+  for (let i = (turns?.length ?? 0) - 1; i >= 0; i--) { const t = turns![i]; if (t.role === "assistant" && !t.note) return t; }
   return undefined;
 }
 
