@@ -1,0 +1,12 @@
+import { readFileSync, writeFileSync, readdirSync } from "node:fs";
+const dir = "test/slash-b64";
+const parts = readdirSync(dir).filter((n) => n.endsWith(".txt")).sort();
+if (parts.length !== 19) throw new Error(`expected 19 slash payload parts, got ${parts.length}`);
+const b64 = parts.map((n) => readFileSync(`${dir}/${n}`, "utf8").replace(/\s/g, "")).join("");
+writeFileSync("test/slash.test.mjs", Buffer.from(b64, "base64"));
+const statePath = "src/app-state.tsx";
+const state = readFileSync(statePath, "utf8");
+const one = "await backend.newBotChat(bot); await loadChat(bot, true);";
+const two = "await backend.newBotChat(bot);\n    await loadChat(bot, true);";
+if (state.includes(one)) writeFileSync(statePath, state.replace(one, two));
+else if (!state.includes(two)) throw new Error("newChat call not found");

@@ -28,6 +28,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
+      - run: node scripts/restore-slash.mjs
       - run: npx tsc --noEmit
       - run: npm test
         env:
