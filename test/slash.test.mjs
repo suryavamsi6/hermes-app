@@ -1,3 +1,1 @@
-// v0.11.4 slash tests. The body lives in two files so a GitHub write does not clip it.
-import "./slash-a2.mjs";
-import "./slash-b.mjs";
+// Moved. test/slash-screen.mjs checks the chat screen. The rest of these tests still live in git history at 3250d70.
