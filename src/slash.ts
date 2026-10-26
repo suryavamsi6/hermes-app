@@ -32,6 +32,7 @@ export type SlashAction =
   | { type: "approve"; choice: "once" | "session" | "always" | "deny" }
   | { type: "model"; query: string }
   | { type: "open"; screen: "settings" | "mcp" | "plugins" | "memory" | "routines" | "topics" | "activity" | "call" | "skills" }
+  | { type: "new" }
   | { type: "search" }
   | { type: "export" }
   | { type: "skill"; name: string; slug: string; arg: string }
@@ -56,7 +57,8 @@ const APP: (SlashCommand & { action: (arg: string) => SlashAction })[] = [
   { name: "plugins", description: "Plugins for this bot", kind: "app", action: () => ({ type: "open", screen: "plugins" }) },
   { name: "memory", description: "What this bot remembers", kind: "app", action: () => ({ type: "open", screen: "memory" }) },
   { name: "routines", description: "Scheduled routines (cron jobs)", kind: "app", aliases: ["cron", "jobs"], action: () => ({ type: "open", screen: "routines" }) },
-  { name: "topics", description: "Topics and past sessions", kind: "app", aliases: ["new", "sessions", "history", "resume"], action: () => ({ type: "open", screen: "topics" }) },
+  { name: "new", description: "Start a fresh chat with this bot", kind: "app", aliases: ["reset", "clear"], action: () => ({ type: "new" }) },
+  { name: "topics", description: "Topics and past sessions", kind: "app", aliases: ["sessions", "history", "resume"], action: () => ({ type: "open", screen: "topics" }) },
   { name: "activity", description: "What this bot did recently", kind: "app", aliases: ["usage", "insights"], action: () => ({ type: "open", screen: "activity" }) },
   { name: "settings", description: "This bot's name, face and persona", kind: "app", aliases: ["personality", "profile"], action: () => ({ type: "open", screen: "settings" }) },
   { name: "call", description: "Talk to this bot by voice", kind: "app", aliases: ["voice"], action: () => ({ type: "open", screen: "call" }) },
@@ -64,8 +66,7 @@ const APP: (SlashCommand & { action: (arg: string) => SlashAction })[] = [
 
 /** Hermes commands that only run in its own chat surfaces. Typed here, they're explained, never sent. */
 export const HERMES_ONLY: Record<string, string> = {
-  compress: "Compress the conversation", compact: "Compress the conversation", reset: "Start a fresh session",
-  clear: "Start a fresh session", undo: "Undo the last turn", reasoning: "Set reasoning effort", yolo: "Skip approvals",
+  compress: "Compress the conversation", compact: "Compress the conversation", undo: "Undo the last turn", reasoning: "Set reasoning effort", yolo: "Skip approvals",
   verbose: "Show tool details", fast: "Fast mode", goal: "Set a goal", loop: "Repeat a task", plan: "Plan before acting",
   learn: "Learn from this session", init: "Set up a project", moa: "Mixture of agents", debug: "Upload a debug report",
   snapshot: "Save or restore a snapshot", queue: "Queue a message", title: "Rename the session", footer: "Reply footer",

@@ -87,7 +87,7 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
   const press = async () => {
     const typed = text.trim();
     // Send with the picker open and a partial name ("/sta") takes the highlighted first row.
-    if (picks.length && !picks.some((c) => c.name === query?.toLowerCase())) return pick(picks[0]);
+    if (picks.length && !picks.some((c) => c.name === query?.toLowerCase() || c.aliases?.includes(query?.toLowerCase() ?? ""))) return pick(picks[0]);
     if (typed.startsWith("/") && !typed.startsWith("//")) { tapHaptic(); if (slash(typed)) return; }
     if (mode === "stop") return onStop();
     tapHaptic();

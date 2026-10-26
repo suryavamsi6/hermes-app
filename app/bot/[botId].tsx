@@ -291,7 +291,7 @@ const AWAY = 320; // px scrolled up from the newest message before the jump butt
 export default function BotChatScreen() {
   const { botId } = useLocalSearchParams<{ botId: string }>();
   const bot = useBot(botId);
-  const { loadChat, send, steer, retry, syncChat, stop, approve, setActive, react, bots, backend, reloadBots } = useApp();
+  const { loadChat, newChat, send, steer, retry, syncChat, stop, approve, setActive, react, bots, backend, reloadBots } = useApp();
   const insets = useSafeAreaInsets();
   const [composerH, setComposerH] = useState(76);
   const list = useRef<FlatList<ChatRow>>(null);
@@ -418,6 +418,11 @@ export default function BotChatScreen() {
         else setNote("Nothing is waiting for your OK.");
         return "done";
       case "model": setModelQuery(a.query); setModelSheet(true); return "done";
+      case "new":
+        if (busy) { setNote("Wait for this reply to finish, or /stop it first."); return "done"; }
+        void newChat(bot).then(() => setNote("New chat started. The previous one is under Topics & sessions."),
+          (e: any) => setNote(`Couldn't start a new chat: ${String(e?.message ?? e)}`));
+        return "done";
       case "search": startSearch(); return "done";
       case "export": exportChat(); return "done";
       case "open": {

@@ -35,7 +35,7 @@ test("dispatch: app commands, aliases, skills, Hermes-only and unknown", () => {
   assert.deepStrictEqual(r("/steer be brief"), { type: "steer", text: "be brief" });
   assert.strictEqual(r("/steer").type, "missing");
   assert.deepStrictEqual(r("/cron"), { type: "open", screen: "routines" });
-  assert.deepStrictEqual(r("/new"), { type: "open", screen: "topics" });
+  assert.deepStrictEqual(r("/topics"), { type: "open", screen: "topics" });
   assert.deepStrictEqual(r("/server-health check the NAS"), { type: "skill", name: "Server Health", slug: "server-health", arg: "check the NAS" });
   assert.deepStrictEqual(r("/trip-planner"), { type: "skill", name: "trip-planner", slug: "trip-planner", arg: "" });
   assert.deepStrictEqual(r("/old-skill"), { type: "unknown", name: "old-skill" }, "disabled skills aren't commands");
@@ -88,10 +88,43 @@ test("picker: shows on '/' until a space, filtered and ranked as you type", () =
 test("the composer runs commands instead of sending or steering them; the picker has no row animations", () => {
   const src = readFileSync("src/ui/composer.tsx", "utf8");
   assert.match(src, /if \(typed\.startsWith\("\/"\) && !typed\.startsWith\("\/\/"\)\) \{ tapHaptic\(\); if \(slash\(typed\)\) return; \}\n    if \(mode === "stop"\)/, "before stop/steer/send");
-  assert.match(src, /if \(picks\.length && !picks\.some\(\(c\) => c\.name === query\?\.toLowerCase\(\)\)\) return pick\(picks\[0\]\);/, "Send on a partial name picks the top row");
+  assert.match(src, /if \(picks\.length && !picks\.some\(\(c\) => c\.name === query\?\.toLowerCase\(\) \|\| c\.aliases\?\.includes\(query\?\.toLowerCase\(\) \?\? ""\)\)\) return pick\(picks\[0\]\);/, "Send on a partial name picks the top row; a full name or alias runs as typed");
   const picker = readFileSync("src/ui/slash-picker.tsx", "utf8");
   assert.doesNotMatch(picker, /\b(entering|exiting|layout)=\{/);
   const chat = readFileSync("app/bot/[botId].tsx", "utf8");
   assert.match(chat, /commands=\{commands\} onSlash=\{onSlash\}/);
   assert.match(chat, /case "skill": onSend\(skillMessage\(a\.name, a\.arg\), images, files\); return "sent";/);
+});
+
+// v0.11.5: /new opened Topics in v0.11.4 (an alias of /topics). It now starts a fresh chat in place.
+test("/new, /reset and /clear start a fresh chat; /topics and /history still open Topics", () => {
+  for (const t of ["/new", "/NEW", "/reset", "/clear"]) assert.deepStrictEqual(m.resolveSlash(t), { type: "new" }, t);
+  for (const t of ["/topics", "/history", "/sessions", "/resume"]) assert.deepStrictEqual(m.resolveSlash(t), { type: "open", screen: "topics" }, t);
+  const cat = m.catalog();
+  assert.strictEqual(cat.find((c) => c.name === "new").description, "Start a fresh chat with this bot");
+  assert.ok(!cat.find((c) => c.name === "topics").aliases.includes("new"));
+  assert.strictEqual(m.filterCommands(cat, "new")[0].name, "new");
+  assert.strictEqual(m.filterCommands(cat, "reset")[0].name, "new");
+  assert.ok(!("reset" in m.HERMES_ONLY) && !("clear" in m.HERMES_ONLY));
+
+  const chat = readFileSync("app/bot/[botId].tsx", "utf8");
+  const branch = /case "new":([\s\S]*?)case "search":/.exec(chat)?.[1] ?? "";
+  assert.match(branch, /newChat\(bot\)/, "/new calls the new-chat action");
+  assert.doesNotMatch(branch, /router\.|push\(/, "/new doesn't navigate");
+  assert.match(branch, /if \(busy\)/, "not while a reply is running");
+  const state = readFileSync("src/app-state.tsx", "utf8");
+  assert.match(state, /await backend\.newBotChat\(bot\);\n    await loadChat\(bot, true\);/, "new session, then the (empty) chat is reloaded");
+});
+
+test("/new in the demo: a new empty session becomes the bot's chat", async () => {
+  execSync("npx -y esbuild@0.24.0 src/demo-backend.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/hm-slash/demo.mjs --log-level=error --external:react-native --external:expo-*");
+  const { DemoBackend } = await import("../node_modules/.cache/hm-slash/demo.mjs");
+  const d = new DemoBackend();
+  const [bot] = await d.listBots();
+  const before = await d.botChatSession(bot);
+  assert.ok(JSON.stringify(await d.chat(bot).messages(before)).length > 20);
+  const id = await d.newBotChat(bot);
+  assert.notStrictEqual(id, before);
+  assert.strictEqual(await d.botChatSession(bot), id);
+  assert.deepStrictEqual((await d.chat(bot).messages(id)).messages, []);
 });
