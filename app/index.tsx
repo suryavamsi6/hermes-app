@@ -124,7 +124,7 @@ const Hero = memo(function Hero({ bot, onLong }: { bot: Bot; onLong: (b: Bot) =>
   const label = moodLabel(mood);
   return (
     <PressScale onPress={() => open(bot)} onPressIn={() => setPoke((n) => n + 1)} onLongPress={() => onLong(bot)} accessibilityLabel={`Open ${bot.name} (primary)${label ? `, ${label}` : ""}`} to={0.97}
-      style={{ alignItems: "center", paddingTop: 18, paddingBottom: 22, gap: 10 }}>
+      style={{ alignItems: "center", marginHorizontal: 16, marginTop: 8, marginBottom: 10, paddingTop: 20, paddingBottom: 20, gap: 10, borderRadius: 28, backgroundColor: colors.botBubble, borderWidth: 1, borderColor: colors.border }}>
       <View>
         <Avatar bot={bot} size={128} mood={mood} badge={false} poke={poke} />
         <View style={{ position: "absolute", right: -2, bottom: 2, width: 34, height: 34, borderRadius: 17, backgroundColor: colors.star,
@@ -148,7 +148,7 @@ const BotRow = memo(function BotRow({ bot, onLong, primary }: { bot: Bot; onLong
   const label = moodLabel(mood);
   return (
     <Pressable onPress={() => open(bot)} onLongPress={() => onLong(bot)} accessibilityLabel={`Open ${bot.name}${label ? `, ${label}` : ""}${n ? `, ${n} unread` : ""}`}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, minHeight: 74, paddingHorizontal: 18, paddingVertical: 11, backgroundColor: pressed ? colors.control : "transparent" })}>
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, minHeight: 74, marginHorizontal: 12, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.control : colors.surface })}>
       <Avatar bot={bot} size={52} mood={mood} badge={false} />
       <View style={{ flex: 1, gap: 3 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>

@@ -2,12 +2,12 @@ import { useFonts } from "expo-font";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Appearance, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, useApp } from "../src/app-state";
 import { clearBotNotifications, ensureNotifications, onNotificationTap } from "../src/notify";
-import { colors } from "../src/ui/theme";
-import { loadPrefs } from "../src/prefs";
+import { colors, setTheme } from "../src/ui/theme";
+import { loadPrefs, usePrefs } from "../src/prefs";
 import { AppLock } from "../src/ui/app-lock";
 import { ToastHost } from "../src/ui/toast";
 
@@ -47,6 +47,14 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Pro
 }
 
 export default function RootLayout() {
+  const appearance = usePrefs((p) => p.appearance);
+  useEffect(() => {
+    const update = () => setTheme(appearance === "system" ? (Appearance.getColorScheme() === "light" ? "light" : "dark") : appearance);
+    update();
+    if (appearance !== "system") return;
+    const sub = Appearance.addChangeListener(update);
+    return () => sub.remove();
+  }, [appearance]);
   const [loaded] = useFonts({
     "Inter-Regular": require("../assets/fonts/Inter-Regular.ttf"),
     "Inter-Medium": require("../assets/fonts/Inter-Medium.ttf"),
@@ -57,9 +65,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AppProvider>
         <NotificationTaps />
-        <StatusBar style="light" />
+        <StatusBar style={appearance === "light" || (appearance === "system" && Appearance.getColorScheme() === "light") ? "dark" : "light"} />
         {/* Screens slide in from the right (native stack, UI thread); Home and modals keep their own. */}
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: "slide_from_right", animationDuration: 260 }}>
+        <Stack key={`${appearance}-${colors.canvas}`} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: "slide_from_right", animationDuration: 260 }}>
           <Stack.Screen name="index" options={{ animation: "fade" }} />
           <Stack.Screen name="settings" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
         </Stack>

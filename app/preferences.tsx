@@ -82,8 +82,13 @@ export default function Preferences() {
         </Section>
       ) : null}
 
-      <Section title="Appearance" footer="Animations follow Android's 'Remove animations' setting. Each bot's look is set in its own settings.">
-        <Row title="Reduce motion" detail="Follows the system setting" last />
+      <Section title="Appearance" footer="Bot faces keep their colors in both themes. Animations respect Android's reduced motion setting.">
+        <View style={{ padding: 14, gap: 10 }}>
+          <Text style={type.body}>Theme</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {([ ["system", "System"], ["light", "Light"], ["dark", "Dark"] ] as const).map(([value, label]) => <Chip key={value} label={label} selected={p.appearance === value} onPress={() => setPrefs({ appearance: value })} />)}
+          </View>
+        </View>
       </Section>
 
       <Section title="Data">

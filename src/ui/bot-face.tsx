@@ -30,7 +30,8 @@ export const ShapeTile = memo(function ShapeTile({ shape = "rounded", color, col
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100" style={{ position: "absolute", left: 0, top: 0 }}>
       {color2 ? <Defs><LinearGradient id={gid} x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor={color} /><Stop offset="1" stopColor={color2} /></LinearGradient></Defs> : null}
-      <Path d={d} fill={color2 ? `url(#${gid})` : color} />
+      <Path d={d} fill={color2 ? `url(#${gid})` : color} stroke="rgba(255,255,255,0.24)" strokeWidth={2.2} />
+      <Path d={d} fill="rgba(255,255,255,0.055)" stroke="rgba(12,10,24,0.14)" strokeWidth={1} transform="translate(0,-1)" />
     </Svg>
   );
 });

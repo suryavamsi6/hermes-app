@@ -1,6 +1,7 @@
 // App preferences (kept on the phone) and the pure rules that use them. RN-free so it's unit-tested.
 export type BotNotify = { muted?: boolean; replies?: boolean; approvals?: boolean; errors?: boolean };
 export type Prefs = {
+  appearance: "system" | "light" | "dark";
   // Chat
   showTimestamps: boolean; showStatus: boolean; readAloudRate: number;
   // Notifications
@@ -12,6 +13,7 @@ export type Prefs = {
   appLock: boolean;
 };
 export const DEFAULT_PREFS: Prefs = {
+  appearance: "system",
   showTimestamps: true, showStatus: true, readAloudRate: 1,
   notifyReplies: true, notifyApprovals: true, notifyErrors: true, hidePreviews: false,
   quietStart: null, quietEnd: null, bots: {}, appLock: false,

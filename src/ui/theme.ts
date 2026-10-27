@@ -1,7 +1,13 @@
 // Design tokens for Hermes Mobile: a dark, low-contrast look (black canvas, grey text, one blue
 // accent for links) with Inter as the only typeface. Spacing is on a 4-point grid.
 
-export const colors = {
+const light = {
+  canvas: "#fffaf2", surface: "#ffffff", floating: "#fffdf9", control: "#f4efe7", controlActive: "#eae1f5",
+  border: "#e8e0d5", borderStrong: "#d8cdbf", text: "#171525", textSecondary: "#48465a", muted: "#6f6b7d", dim: "#777386",
+  accentText: "#6841d9", action: "#7447ed", actionForeground: "#ffffff", star: "#e5a800", danger: "#c83d42", success: "#159b72", warning: "#a46600",
+  userBubble: "#f4e7d7", botBubble: "#f1eafa", scrim: "rgba(15,12,25,0.48)",
+};
+const dark = {
   canvas: "#09090b",          // screen background
   surface: "#131316",         // cards, assistant replies
   floating: "#1b1b1f",        // headers and sheets that float over the canvas
@@ -23,7 +29,9 @@ export const colors = {
   userBubble: "#222227",
   botBubble: "#131316",
   scrim: "rgba(0,0,0,0.62)",
-} as const;
+};
+export const colors = { ...dark };
+export function setTheme(mode: "light" | "dark") { Object.assign(colors, mode === "light" ? light : dark); }
 
 export const radii = { bubble: 22, pill: 26, card: 18, inset: 12, chip: 999 } as const;
 
