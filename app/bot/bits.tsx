@@ -66,7 +66,7 @@ export const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, h
     : t.status === "streaming" && t.reconnecting ? (<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Spin><Loader size={13} color={colors.muted} /></Spin><Text style={type.label}>Reconnecting...</Text></View>) : null;
   return (
     <Rise play={fresh} style={{ gap: 8, alignItems: "flex-start" }}>
-      {t.steps.length ? <View style={{ paddingLeft: 4 }}><StepsRow steps={t.steps} botId={bot.id} turnId={t.id} /></View> : null}
+      {t.steps.length ? <View style={{ alignSelf: "center", paddingLeft: 0 }}><StepsRow steps={t.steps} botId={bot.id} turnId={t.id} /></View> : null}
       {activity ? <ActivityRow bot={bot} mood={turnMood(t)} text={showStatus ? activity : "Working"} idle={showStatus ? idleKind(t) : null} /> : null}
       {t.approval ? <Rise scale={0.96}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} onEdit={(d) => setDraftText(bot.id, `Don't run that. Instead:\n${d}`)} /></Rise> : null}
       {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>You added: {s}</Text>) : null}

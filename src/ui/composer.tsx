@@ -115,7 +115,7 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
           style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.control : colors.floating, borderWidth: 1, borderColor: colors.border })}>
           {working ? <ActivityIndicator color={colors.muted} /> : <Plus size={24} strokeWidth={2.2} color={colors.text} />}
         </Pressable>
-        <View style={{ flex: 1, minHeight: 48, backgroundColor: colors.floating, borderRadius: radii.pill, borderWidth: 1,
+        <View style={{ flex: 1, minHeight: 52, backgroundColor: colors.surface, borderRadius: radii.pill, borderWidth: 1.5,
           borderColor: voice.listening ? colors.accentText : colors.border, paddingLeft: 18, paddingRight: 5, paddingVertical: 4 }}>
           {files.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8, paddingBottom: 2 }}>

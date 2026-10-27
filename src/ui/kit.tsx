@@ -1,4 +1,4 @@
-// Small shared building blocks so every screen keeps the same dark, rounded look.
+// Shared building blocks keep the app's light and dark themes coherent.
 import { router } from "expo-router";
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Sparkles } from "lucide-react-native";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
@@ -34,8 +34,8 @@ export function Screen({ title, subtitle, right, children, scroll = true }: { ti
   const insets = useSafeAreaInsets();
   const Body = scroll ? ScrollView : View;
   return (
-    <View style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }}>
-      <View style={{ flexDirection: "row", alignItems: "center", height: 52, paddingHorizontal: 8, gap: 4 }}>
+      <View style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top }}>
+      <View style={{ flexDirection: "row", alignItems: "center", minHeight: 58, paddingHorizontal: 12, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
         <Pressable hitSlop={6} accessibilityRole="button" accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
           style={({ pressed }) => ({ width: hit, height: hit, borderRadius: hit / 2, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.control : "transparent" })}>
           <ChevronLeft size={24} color={colors.text} />
@@ -46,7 +46,7 @@ export function Screen({ title, subtitle, right, children, scroll = true }: { ti
         </View>
         {right}
       </View>
-      <Body style={{ flex: 1 }} contentContainerStyle={scroll ? { padding: 16, paddingBottom: insets.bottom + 32, gap: 16 } : undefined} keyboardShouldPersistTaps="handled">
+      <Body style={{ flex: 1 }} contentContainerStyle={scroll ? { padding: 16, paddingTop: 18, paddingBottom: insets.bottom + 32, gap: 18 } : undefined} keyboardShouldPersistTaps="handled">
         {children}
       </Body>
     </View>
@@ -57,7 +57,7 @@ export function Section({ title, children, footer }: { title?: string; children:
   return (
     <View style={{ gap: 8 }}>
       {title ? <Text style={[type.label, { paddingHorizontal: 4, textTransform: "uppercase", letterSpacing: 0.6, fontSize: 11 }]}>{title}</Text> : null}
-      <View style={{ backgroundColor: colors.surface, borderRadius: radii.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong, overflow: "hidden" }}>{children}</View>
+      <View style={{ backgroundColor: colors.surface, borderRadius: radii.card, borderWidth: 1, borderColor: colors.border, overflow: "hidden", shadowColor: colors.text, shadowOpacity: 0.035, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 }}>{children}</View>
       {footer ? <Text style={[type.caption, { paddingHorizontal: 4, color: colors.muted }]}>{footer}</Text> : null}
     </View>
   );
@@ -68,7 +68,7 @@ export function Row({ icon, title, detail, onPress, right, last, danger }: {
 }) {
   return (
     <Pressable disabled={!onPress} onPress={onPress} accessibilityRole={onPress ? "button" : undefined} accessibilityLabel={detail ? `${title}, ${detail}` : title}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52, paddingHorizontal: 14, paddingVertical: 12,
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingHorizontal: 16, paddingVertical: 12,
       backgroundColor: pressed ? colors.control : "transparent", borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong })}>
       {icon}
       <View style={{ flex: 1, gap: 2 }}>
@@ -188,7 +188,7 @@ export function ErrorText({ error }: { error?: string | null }) {
 export function Empty({ emoji, title, body }: { emoji: string; title: string; body: string }) {
   return (
     <View style={{ alignItems: "center", gap: 10, paddingVertical: 40, paddingHorizontal: 24 }}>
-      <View style={{ width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong, marginBottom: 4 }}>
+      <View style={{ width: 76, height: 76, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: colors.botBubble, borderWidth: 1, borderColor: colors.border, marginBottom: 4 }}>
         <Text style={{ fontSize: 32 }}>{emoji}</Text>
       </View>
       <Text style={type.title}>{title}</Text>

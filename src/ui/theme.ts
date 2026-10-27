@@ -31,7 +31,13 @@ const dark = {
   scrim: "rgba(0,0,0,0.62)",
 };
 export const colors = { ...dark };
-export function setTheme(mode: "light" | "dark") { Object.assign(colors, mode === "light" ? light : dark); }
+export function setTheme(mode: "light" | "dark") {
+  Object.assign(colors, mode === "light" ? light : dark);
+  for (const style of Object.values(type)) (style as { color: string }).color = colors.text;
+  type.label.color = colors.muted;
+  type.bodySm.color = colors.textSecondary;
+  type.caption.color = colors.dim;
+}
 
 export const radii = { bubble: 22, pill: 26, card: 18, inset: 12, chip: 999 } as const;
 
@@ -45,7 +51,7 @@ export const hit = 44;
 export const elevation = {
   raised: { elevation: 2, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   floating: { elevation: 8, shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } },
-} as const;
+};
 
 /** Durations for the few UI motions: short and calm, never bouncy. */
 export const motion = { fast: 140, base: 200, slow: 260 } as const;
@@ -55,7 +61,7 @@ export const font = {
   medium: "Inter-Medium",
   semibold: "Inter-SemiBold",
   mono: "monospace",
-} as const;
+};
 
 export const type = {
   display: { fontFamily: font.semibold, fontSize: 26, lineHeight: 32, letterSpacing: -0.4, color: colors.text },
@@ -66,4 +72,4 @@ export const type = {
   bodySm: { fontFamily: font.regular, fontSize: 13.5, lineHeight: 19, color: colors.textSecondary },
   label: { fontFamily: font.medium, fontSize: 12.5, lineHeight: 17, color: colors.muted },
   caption: { fontFamily: font.regular, fontSize: 12, lineHeight: 16, color: colors.dim },
-} as const;
+};
