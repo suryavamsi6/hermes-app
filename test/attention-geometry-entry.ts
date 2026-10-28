@@ -1,0 +1,1 @@
+export { CARD_GAP, cardCenterX, cardGeometry, cardWidthFor, settleTarget, spacingFor, attentionMorphProgress, ringSelectionFromScrollOffset, reconcileMorphSelection, MORPH_START_OFFSET, MORPH_END_OFFSET } from "../src/ui/attention-geometry";

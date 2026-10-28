@@ -1,5 +1,4 @@
-// One reply's tool steps, off to the side of the chat. Opens from the steps pill (tap or swipe
-// right) and slides in from the right, so the chat itself stays a list of messages.
+// One reply's ordered tool steps, off to the side of the chat. Opens from the steps pill's right drag.
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
