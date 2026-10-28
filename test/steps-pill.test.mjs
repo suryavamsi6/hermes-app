@@ -46,3 +46,17 @@ test("a reply with no tool calls still has no pill", () => {
   const kept = m.withKeptSteps([{ id: "a", role: "assistant", text: "hello", steps: [], status: "completed" }], { role: "assistant", text: "hello" });
   assert.deepEqual(kept.steps, []);
 });
+
+test("steps summary has explicit state wording and failure takes precedence", () => {
+  const steps = [
+    { id: "1", tool: "terminal", status: "running" },
+    { id: "2", tool: "web_search", status: "failed" },
+  ];
+  assert.equal(m.summary(steps), "2 steps · failed · terminal, web_search");
+  assert.equal(m.summary([{ ...steps[0], status: "running" }]), "1 step · running · terminal");
+  assert.equal(m.summary([{ ...steps[0], status: "completed" }]), "1 step · done · terminal");
+});
+
+test("empty steps summary is safe", () => {
+  assert.equal(m.summary([]), "No steps");
+});

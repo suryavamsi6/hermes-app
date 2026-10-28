@@ -78,9 +78,10 @@ test("per-bot flavour joins the pool only for matching bots", () => {
   assert.ok(!m.idlePool("wrapup", { name: "Ledger", profile: "finance" }).includes("Crunching numbers"), "flavour isn't used while wrapping up");
 });
 
-test("the status row crossfades its text only: no entering/exiting, plain swap with reduced motion", () => {
+test("the status row is a plain static line: no entering/exiting, no crossfade, polite live region", () => {
   const src = readFileSync("src/ui/activity-row.tsx", "utf8");
   assert.doesNotMatch(src, /\b(entering|exiting|layout)=\{/);
-  assert.match(src, /useReducedMotion\(\)/);
-  assert.match(src, /if \(reduced\) \{ setShown\(target\); return; \}/);
+  assert.doesNotMatch(src, /useReducedMotion|Animated|Reanimated/); // nothing animates, so no motion gate is needed
+  assert.match(src, /accessibilityLiveRegion="polite"/);
+  assert.match(src, /numberOfLines=\{1\}/);
 });
