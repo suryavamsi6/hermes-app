@@ -5,11 +5,11 @@ import { setDraftText, useApp, useHasApproval, useMood, useReaction, useReconnec
 import type { Bot } from "../../src/backend";
 import { skillDisplay } from "../../src/slash";
 import { Component, memo, useRef, type ReactNode } from "react";
-import { moodLabel, turnMood } from "../../src/ui/face-state";
+import { moodLabel } from "../../src/ui/face-state";
 import type { AssistantTurn, Turn, UserTurn } from "../../src/chat-model";
 import { pieces, scrollsSideways } from "../../src/text-safety";
 import { ApprovalCard } from "../../src/ui/approval-card";
-import { activityLine, idleKind } from "../../src/ui/activity";
+import { activityLine } from "../../src/ui/activity";
 import { Avatar, Chip, TapFace } from "../../src/ui/kit";
 import { ActivityRow } from "../../src/ui/activity-row";
 import { usePrefs } from "../../src/prefs";
@@ -42,7 +42,7 @@ export class RowBoundary extends Component<{ children: ReactNode }, { failed: bo
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? <Text style={[type.label, { color: colors.muted, paddingLeft: 6 }]}>This message couldn't be shown.</Text> : this.props.children; }
 }
-export const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, highlight, onLong, onQuote, onRetry }: RowProps) {
+export const TurnRow = memo(function TurnRow({ turn, bot, time, fresh, highlight, onLong, onQuote, onRetry }: RowProps) {
   const { react, approve } = useApp();
   const reaction = useReaction(turn.id);
   const longPress = () => onLong(turn);
@@ -66,14 +66,14 @@ export const TurnRow = memo(function TurnRow({ turn, bot, isLast, time, fresh, h
     : t.status === "streaming" && t.reconnecting ? (<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Spin><Loader size={13} color={colors.muted} /></Spin><Text style={type.label}>Reconnecting...</Text></View>) : null;
   return (
     <Rise play={fresh} style={{ gap: 8, alignItems: "flex-start" }}>
-      {t.steps.length ? <View style={{ alignSelf: "center", paddingLeft: 0 }}><StepsRow steps={t.steps} botId={bot.id} turnId={t.id} /></View> : null}
-      {activity ? <ActivityRow bot={bot} mood={turnMood(t)} text={showStatus ? activity : "Working"} idle={showStatus ? idleKind(t) : null} /> : null}
+      {t.steps.length ? <StepsRow steps={t.steps} botId={bot.id} turnId={t.id} /> : null}
+      {activity ? <ActivityRow text={showStatus ? activity : "Working…"} /> : null}
       {t.approval ? <Rise scale={0.96}><ApprovalCard approval={t.approval} respond={(c) => approve(bot, t.id, c)} onEdit={(d) => setDraftText(bot.id, `Don't run that. Instead:\n${d}`)} /></Rise> : null}
       {t.steers?.length ? t.steers.map((s, i) => <Text key={i} style={[type.label, { paddingLeft: 4, color: colors.accentText }]}>You added: {s}</Text>) : null}
       {t.text ? (
         <SwipeQuote onQuote={() => onQuote(turn)} style={wide ? { width: "94%" } : { maxWidth: "94%" }}>
           <Markdown text={t.text} highlight={highlight} streaming={t.status === "streaming"} wrap={(c, i, n) => (
-            <Pressable onLongPress={longPress} delayLongPress={300} style={[piece(i, n, 14), { backgroundColor: colors.botBubble }, i === 0 ? { borderTopLeftRadius: isLast ? 8 : radii.bubble } : null]}>{c}</Pressable>
+            <Pressable onLongPress={longPress} delayLongPress={300} style={[piece(i, n, 0), { paddingHorizontal: 0, backgroundColor: "transparent" }]}>{c}</Pressable>
           )} />
         </SwipeQuote>
       ) : null}
