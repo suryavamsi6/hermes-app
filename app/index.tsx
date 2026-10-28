@@ -63,16 +63,17 @@ export default function Home() {
       </View>
 
       {notice ? <Notice text={notice} onSettings={() => router.push("/settings")} /> : null}
-      {!query ? <AttentionCarousel items={attention.items} bots={bots} loading={attention.loading} scrollY={scrollY} onSelectRing={expandAttention} /> : null}
+      {!query ? <AttentionCarousel items={attention.items} bots={bots} loading={attention.loading} scrollY={scrollY} onSelectRing={expandAttention}
+        onOpen={(item) => { if (item.destination) router.push(item.destination.path as any); }} /> : null}
       <Animated.FlatList
         ref={listRef}
         data={others} keyExtractor={(b) => b.id} keyboardShouldPersistTaps="handled"
         onScroll={onListScroll} scrollEventThrottle={16}
         ListHeaderComponent={<View>
           {!query ? <TodayCard loading={!botsLoaded} /> : null}
-          {!query && primary ? <><Text style={[type.label, { marginHorizontal: 16, marginBottom: 6, letterSpacing: 0.4 }]}>CONTINUE</Text><BotRow bot={primary} onLong={onLong} primary /></> : null}
+          {!query && primary ? <><Text style={[type.label, { marginHorizontal: 16, marginBottom: 6, letterSpacing: 0.1 }]}>Continue</Text><BotRow bot={primary} onLong={onLong} primary /></> : null}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 16, marginTop: 12, marginBottom: 6 }}>
-            <Text style={[type.label, { letterSpacing: 0.4 }]}>{query ? "SEARCH RESULTS" : "YOUR ASSISTANTS"}</Text>
+            <Text style={[type.label, { letterSpacing: 0.1 }]}>{query ? "Search results" : "Your assistants"}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="More" onPress={() => setGrid(true)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, minHeight: 44, paddingHorizontal: 4 }}>
               <LayoutGrid size={16} color={colors.muted} /><Text style={[type.label, { color: colors.muted }]}>More</Text>
             </Pressable>
@@ -137,7 +138,7 @@ const BotRow = memo(function BotRow({ bot, onLong, primary }: { bot: Bot; onLong
   const label = moodLabel(mood);
   return (
     <Pressable onPress={() => open(bot)} onLongPress={() => onLong(bot)} accessibilityLabel={`Open ${bot.name}${label ? `, ${label}` : ""}${n ? `, ${n} unread` : ""}`}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, minHeight: 74, marginHorizontal: 12, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.control : colors.surface })}>
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 14, minHeight: 78, marginHorizontal: 12, marginBottom: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, backgroundColor: pressed ? colors.control : colors.surface })}>
       <Avatar bot={bot} size={52} mood={mood} badge={false} />
       <View style={{ flex: 1, gap: 3 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>

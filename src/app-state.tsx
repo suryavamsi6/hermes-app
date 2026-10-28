@@ -44,7 +44,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const active = useRef<string | null>(null);
   const aborts = useRef<Record<string, StreamHandle>>({});
   const loadGeneration = useRef<Record<string, number>>({});
-  useEffect(() => { Promise.all([loadConfig(), Store.getItem(DEMO_KEY)]).then(([c, d]) => { setConfig(c); if (d === "1") setDemoState(true); setReady(true); }); }, []);
+  useEffect(() => {
+    let mounted = true;
+    const initialize = async () => {
+      // A SecureStore read can reject on devices where the Android Keystore is unavailable or
+      // has been invalidated. Treat either value as absent and still render setup instead of
+      // leaving startup as an unhandled rejection.
+      const [c, d] = await Promise.all([
+        loadConfig().catch(() => null),
+        Store.getItem(DEMO_KEY).catch(() => null),
+      ]);
+      if (!mounted) return;
+      setConfig(c);
+      if (d === "1") setDemoState(true);
+      setReady(true);
+    };
+    void initialize().catch(() => { if (mounted) setReady(true); });
+    return () => { mounted = false; };
+  }, []);
   const demoBackend = useMemo(() => new DemoBackend(), []);
   const backend = useMemo<Backend | null>(() => (demo ? demoBackend : config ? new LiveBackend(config) : null), [demo, config, demoBackend]);
   const reloadBots = useCallback(async () => {

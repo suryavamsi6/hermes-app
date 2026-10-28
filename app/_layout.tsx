@@ -40,7 +40,7 @@ function useLastCrash(): LastCrash | null {
     if (!raw) return;
     void Store.deleteItem(CRASH_KEY).catch(() => {});
     try { const c = JSON.parse(raw) as LastCrash; if (c?.message && Date.now() - (c.at ?? 0) < 7 * 864e5) setCrash(c); } catch {}
-  }); }, []);
+  }).catch(() => {}); }, []);
   return crash;
 }
 

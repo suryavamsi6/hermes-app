@@ -3,10 +3,10 @@ import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { cancelAnimation, interpolate, useAnimatedReaction, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, type SharedValue } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
+import { ArrowUpRight } from "lucide-react-native";
 import type { Bot } from "../backend";
 import { reconcileAttentionKey, type AttentionItem } from "./attention-items";
-import { attentionMorphProgress, cardGeometry, cardWidthFor, reconcileMorphSelection, ringSelectionFromScrollOffset, settleTarget, spacingFor, MORPH_END_OFFSET, MORPH_START_OFFSET } from "./attention-geometry";
-import { Avatar } from "./kit";
+import { attentionMorphProgress, cardGeometry, cardWidthFor, reconcileMorphSelection, ringSelectionFromScrollOffset, settleTarget, spacingFor } from "./attention-geometry";
 import { colors, font, type } from "./theme";
 
 type Props = {
@@ -15,11 +15,12 @@ type Props = {
   loading?: boolean;
   scrollY: SharedValue<number>;
   onSelectRing: () => void;
+  onOpen: (item: AttentionItem) => void;
 };
 
 export const ATTENTION_CLIP_HEIGHT = 238;
 
-export function AttentionCarousel({ items, bots, loading = false, scrollY, onSelectRing }: Props) {
+export function AttentionCarousel({ items, bots, loading = false, scrollY, onSelectRing, onOpen }: Props) {
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = cardWidthFor(windowWidth);
   const spacing = spacingFor(cardWidth);
@@ -44,7 +45,7 @@ export function AttentionCarousel({ items, bots, loading = false, scrollY, onSel
   }, [items]);
 
   useAnimatedReaction(
-    () => reducedMotion ? scrollY.get() >= MORPH_END_OFFSET : ringSelectionFromScrollOffset(scrollY.get(), items.length, index).compact,
+    () => reducedMotion ? scrollY.get() >= 104 : ringSelectionFromScrollOffset(scrollY.get(), items.length, index).compact,
     (next, previous) => { if (next !== previous) scheduleOnRN(updateCompact, next); },
     [items.length, index, reducedMotion, scrollY, updateCompact],
   );
@@ -89,11 +90,11 @@ export function AttentionCarousel({ items, bots, loading = false, scrollY, onSel
     }), [dragOrigin, items.length, position, reducedMotion, selectAt, spacing]);
 
   const ringMorph = useAnimatedStyle(() => {
-    const progress = reducedMotion ? (scrollY.get() >= MORPH_END_OFFSET ? 1 : 0) : attentionMorphProgress(scrollY.get());
+    const progress = reducedMotion ? (scrollY.get() >= 104 ? 1 : 0) : attentionMorphProgress(scrollY.get());
     return { opacity: progress, transform: [{ translateY: reducedMotion ? 0 : interpolate(progress, [0, 1], [-10, 0]) }] };
   });
   const hintMorph = useAnimatedStyle(() => {
-    const progress = reducedMotion ? (scrollY.get() >= MORPH_END_OFFSET ? 1 : 0) : attentionMorphProgress(scrollY.get());
+    const progress = reducedMotion ? (scrollY.get() >= 104 ? 1 : 0) : attentionMorphProgress(scrollY.get());
     return { opacity: 1 - progress };
   });
 
@@ -108,6 +109,7 @@ export function AttentionCarousel({ items, bots, loading = false, scrollY, onSel
                   const bot = item.botId ? botById.get(item.botId) : undefined;
                   const selected = item.key === selectedKey;
                   return <AttentionCard key={item.key} item={item} bot={bot} index={itemIndex} selected={selected} width={cardWidth} spacing={spacing} position={position} scrollY={scrollY} reducedMotion={reducedMotion}
+                    onOpen={() => onOpen(item)}
                     onSelect={() => {
                       if (selected) return;
                       if (reducedMotion) { position.set(itemIndex); selectAt(itemIndex); }
@@ -151,34 +153,41 @@ function RingRow({ items, selectedIndex, compact, style, onSelect }: {
   </Animated.View>;
 }
 
-function AttentionCard({ item, bot, index, selected, width, spacing, position, scrollY, reducedMotion, onSelect }: {
+function AttentionCard({ item, bot, index, selected, width, spacing, position, scrollY, reducedMotion, onSelect, onOpen }: {
   item: AttentionItem; bot?: Bot; index: number; selected: boolean; width: number; spacing: number; position: SharedValue<number>;
+  onOpen: () => void;
   scrollY: SharedValue<number>; reducedMotion: boolean; onSelect: () => void;
 }) {
   const style = useAnimatedStyle(() => {
     const distance = index - position.get();
     const geometry = cardGeometry(distance, width);
-    const progress = reducedMotion ? (scrollY.get() >= MORPH_END_OFFSET ? 1 : 0) : attentionMorphProgress(scrollY.get());
+    const progress = reducedMotion ? (scrollY.get() >= 104 ? 1 : 0) : attentionMorphProgress(scrollY.get());
     return { opacity: geometry.opacity * (1 - progress), transform: [
-      { perspective: 1000 }, { translateX: distance * spacing }, { translateY: geometry.translateY - (reducedMotion ? 0 : progress * 14) },
-      { rotateY: `${geometry.rotateY}deg` }, { scale: geometry.scale }, { translateZ: geometry.zPush },
+      { perspective: 1000 }, { translateX: distance * spacing }, { translateY: -geometry.translateY - (reducedMotion ? 0 : progress * 14) },
+      { rotateY: `${geometry.rotateY}deg` }, { scale: geometry.scale },
     ] };
   });
-  const labelColor = item.kind === "failed" ? colors.danger : item.kind === "approval" ? colors.warning : colors.accentText;
+  const labelColor = item.kind === "failed" ? colors.danger : item.kind === "approval" ? colors.warning : item.kind === "running" ? colors.success : colors.accentText;
+  const kindLabel = item.kind === "approval" ? "Needs your OK" : item.kind === "running" ? "In progress" : item.kind === "failed" ? "Needs attention" : "Local time";
   const title = item.title.length > 88 ? `${item.title.slice(0, 85)}…` : item.title;
-  return <Animated.View style={[{ position: "absolute", left: "50%", marginLeft: -width / 2, top: 20, width, minHeight: 174 }, style]}>
+  const identity = bot?.name ? `${bot.name} · ${kindLabel}` : item.kind === "time" ? "Your device" : kindLabel;
+  return <Animated.View style={[{ position: "absolute", left: "50%", marginLeft: -width / 2, top: 20, width, minHeight: 188 }, style]}>
     <Pressable accessibilityRole="button" accessibilityLabel={`${item.title}${item.detail ? `, ${item.detail}` : ""}${item.metric ? `, ${item.metric}` : ""}`}
       accessibilityState={{ selected }} accessibilityHint={selected ? "Currently centered" : "Center this card"} onPress={onSelect}
-      style={({ pressed }) => ({ minHeight: 174, flex: 1, gap: 8, padding: 16, borderRadius: 20, borderWidth: 1,
-        borderColor: selected ? colors.borderStrong : colors.border, backgroundColor: pressed ? colors.control : colors.surface, justifyContent: "center" })}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        {bot ? <Avatar bot={bot} size={36} badge={false} mood={item.kind === "approval" ? "waiting" : item.kind === "failed" ? "error" : "working"} /> : null}
-        <View style={{ flex: 1, gap: 2 }}><Text style={[type.label, { color: labelColor, letterSpacing: 0.3 }]} numberOfLines={1}>{item.kind === "time" ? "LOCAL TIME" : item.kind.toUpperCase()}</Text>
-          <Text style={[type.title, { fontFamily: font.semibold }]} numberOfLines={2}>{bot?.name ?? "Your device"}</Text></View>
-        <Text style={[type.label, { color: labelColor, fontVariant: ["tabular-nums"] }]} numberOfLines={1}>{item.metric}</Text>
+      style={({ pressed }) => ({ minHeight: 188, flex: 1, gap: 8, padding: 16, borderRadius: 28,
+        backgroundColor: pressed ? colors.control : `${labelColor}16`, justifyContent: "center" })}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ flexShrink: 1, minHeight: 30, alignSelf: "flex-start", justifyContent: "center", paddingHorizontal: 11, borderRadius: 15, backgroundColor: `${labelColor}22` }}>
+          <Text style={[type.label, { color: labelColor }]} numberOfLines={1}>{identity}</Text>
+        </View>
+        {item.destination ? <Pressable accessibilityRole="button" accessibilityLabel={`Open ${bot?.name ?? "attention item"}`} onPress={onOpen}
+          hitSlop={6} style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.text, opacity: pressed ? 0.78 : 1 })}>
+          <ArrowUpRight size={18} color={colors.canvas} strokeWidth={2.5} />
+        </Pressable> : null}
       </View>
-      <Text style={[type.body, { fontFamily: font.medium }]} numberOfLines={2}>{title}</Text>
-      {item.detail ? <Text style={[type.bodySm, { color: colors.muted }]} numberOfLines={2}>{item.detail}</Text> : null}
+      <Text style={{ color: labelColor, fontFamily: font.medium, fontSize: 29, lineHeight: 34, fontVariant: ["tabular-nums"] }} numberOfLines={1}>{item.metric}</Text>
+      <Text style={[type.title, { fontSize: 18, lineHeight: 23, fontFamily: font.semibold }]} numberOfLines={2}>{title}</Text>
+      {item.detail ? <Text style={[type.bodySm, { color: colors.textSecondary }]} numberOfLines={1}>{item.detail}</Text> : null}
     </Pressable>
   </Animated.View>;
 }

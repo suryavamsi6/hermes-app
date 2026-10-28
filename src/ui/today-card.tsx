@@ -46,9 +46,9 @@ export function TodayCard({ loading }: { loading: boolean }) {
 
   return (
     <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 8,
-      borderRadius: radii.card, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
+      borderRadius: 24, backgroundColor: colors.surface }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Text style={[type.label, { letterSpacing: 0.4 }]}>ATTENTION</Text>
+        <Text style={[type.label, { letterSpacing: 0.1 }]}>Attention</Text>
         <Text style={[type.label, { color: colors.muted, fontVariant: ["tabular-nums"] }]}>{attention.items.find((item) => item.kind === "time")?.metric}</Text>
       </View>
       {attention.loading ? <Text style={[type.bodySm, { color: colors.muted }]}>Checking your chats…</Text> : null}

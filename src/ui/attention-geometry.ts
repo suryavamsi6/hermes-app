@@ -8,7 +8,7 @@ export const MORPH_START_OFFSET = 8;
 export const MORPH_END_OFFSET = 104;
 
 /** Progress from expanded cards (0) to the pinned ring row (1). */
-export function attentionMorphProgress(offset: number, start = MORPH_START_OFFSET, end = MORPH_END_OFFSET): number {
+export function attentionMorphProgress(offset: number, start = 8, end = 104): number {
   "worklet";
   if (end <= start) return offset >= end ? 1 : 0;
   return Math.max(0, Math.min(1, (offset - start) / (end - start)));
@@ -30,12 +30,12 @@ export function reconcileMorphSelection(previousIndex: number, previousCount: nu
 
 export function cardWidthFor(viewportWidth: number): number {
   "worklet";
-  return Math.max(1, Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, viewportWidth * 0.74), viewportWidth - 24));
+  return Math.max(1, Math.min(296, Math.max(176, viewportWidth * 0.74), viewportWidth - 24));
 }
 
 export function spacingFor(cardWidth: number): number {
   "worklet";
-  return cardWidth + CARD_GAP;
+  return cardWidth + 16;
 }
 
 export function settleTarget(index: number, velocityX: number, spacing: number, count: number): number {
@@ -48,10 +48,11 @@ export function settleTarget(index: number, velocityX: number, spacing: number, 
 export function cardGeometry(distance: number, cardWidth: number) {
   "worklet";
   const d = Math.abs(distance);
+  const perspective = 1000;
   const angle = Math.min(40, d * 40);
   const zPush = Math.max(0, 28 - d * 14);
   const scale = Math.max(0.66, 1 - d * 0.105);
-  const perspectiveScale = CAROUSEL_PERSPECTIVE / (CAROUSEL_PERSPECTIVE - zPush);
+  const perspectiveScale = perspective / (perspective - zPush);
   const projectedWidth = cardWidth * scale * Math.cos((angle * Math.PI) / 180) * perspectiveScale;
   return {
     rotateY: distance === 0 ? 0 : -Math.sign(distance) * angle,
