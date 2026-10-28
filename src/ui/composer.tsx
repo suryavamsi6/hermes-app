@@ -1,3 +1,4 @@
+// One composer surface holds attachments, the bot's draft, voice and the send/steer/stop action.
 import { ArrowUp, Camera, CornerDownRight, FileText, Image as ImageIcon, Mic, Plus, Square, X } from "lucide-react-native";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
