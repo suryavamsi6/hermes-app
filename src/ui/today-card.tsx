@@ -33,7 +33,8 @@ export function TodayCard({ loading }: { loading: boolean }) {
   const { backend, bots } = useApp();
   const chats = useAttentionChats();
   const unread = useTotalUnread();
-  const unreadBots = useUnreadBots();
+  const unreadIds = useUnreadBots();
+  const unreadBots = useMemo(() => (unreadIds ? unreadIds.split(",") : []), [unreadIds]);
   const attention = useMemo(() => selectAttentionItems(chats, now, { loading: loading || bots.some((bot) => !chats[bot.id]?.loaded) }), [chats, now, loading, bots]);
   // Keep the existing routine result and direct-to-failures destination.
   const failing = useLoad(backend && bots.length && bots.length <= 12 ? async () => {
