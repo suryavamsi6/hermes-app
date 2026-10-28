@@ -51,10 +51,11 @@ test("tables with alignment and escaped pipes; quotes", () => {
   assert.strictEqual(b[1].c[0].c[1].k, "b");
 });
 
-test("steps summary names the first three tools", () => {
-  const s = (tool) => ({ id: tool, tool, status: "completed" });
-  assert.strictEqual(m.summary([s("terminal")]), "1 step · terminal");
-  assert.strictEqual(m.summary([s("a"), s("b"), s("a"), s("c"), s("d")]), "5 steps · a, b, c +1");
+test("steps summary names state plus the first three tools", () => {
+  const s = (tool, status = "completed") => ({ id: tool, tool, status });
+  assert.strictEqual(m.summary([s("terminal")]), "1 step · done · terminal");
+  assert.strictEqual(m.summary([s("a"), s("b", "running"), s("a"), s("c"), s("d")]), "5 steps · running · a, b, c +1");
+  assert.strictEqual(m.summary([s("a", "failed")]), "1 step · failed · a");
 });
 
 test("v0.11.0: a streaming reply never flashes an unfinished **bold** or `code` opener", () => {
