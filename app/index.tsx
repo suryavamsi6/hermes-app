@@ -1,20 +1,19 @@
-// Home, Grok Bot-style: your avatar (settings) and "+" (add a bot) on top, the primary bot big and
-// centred with a star, the other bots below (face, name, last activity, last message), and a grid
-// button + Search pill at the bottom. Long-press any bot to make it primary.
+// Compact Home: header search, a Continue row for the primary bot, then the assistant roster.
 import { Redirect, router, useFocusEffect } from "expo-router";
+import { FlatList, Pressable, Text, TextInput, View } from "react-native";
+import Animated, { useAnimatedScrollHandler, useReducedMotion, useSharedValue } from "react-native-reanimated";
 import { CalendarClock, CircleAlert, LayoutGrid, LoaderCircle, ShieldQuestion, Palette, Plus, Search, Settings, Star, UserRound, X } from "lucide-react-native";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Bot } from "../src/backend";
-import { useActivity, useApp, useLastAt, useMood, usePreview, useUnread } from "../src/app-state";
+import { useActivity, useApp, useAttentionChats, useLastAt, useMood, usePreview, useUnread } from "../src/app-state";
 import { moodLabel, type FaceMood } from "../src/ui/face-state";
 import { Avatar } from "../src/ui/kit";
-import { PressScale, Rise, Skeleton, Spin } from "../src/ui/motion";
+import { Skeleton, Spin } from "../src/ui/motion";
 import { TodayCard } from "../src/ui/today-card";
+import { selectAttentionItems } from "../src/ui/attention-items";
+import { AttentionCarousel } from "../src/ui/attention-carousel";
 
-/** The list staggers in once per app launch, not every time Home re-mounts. */
-let introPlayed = false;
 import { Sheet, SheetRow } from "../src/ui/sheet";
 import { relTime } from "../src/ui/time";
 import { colors, font, type } from "../src/ui/theme";
@@ -23,9 +22,8 @@ const circle = { width: 48, height: 48, borderRadius: 24, alignItems: "center", 
 const open = (b: Bot) => router.push(`/bot/${encodeURIComponent(b.id)}`);
 
 export default function Home() {
-  const { ready, backend, bots, demo, primaryId, setPrimary, reloadBots } = useApp();
-  const intro = useRef(!introPlayed).current;
-  useEffect(() => { introPlayed = true; }, []);
+  const { ready, backend, bots, botsLoaded, botsError, demo, primaryId, setPrimary, reloadBots } = useApp();
+  const chats = useAttentionChats();
   // With hermes-bridge the roster is the server's profile list: refresh it whenever Home shows again.
   useFocusEffect(useCallback(() => { void reloadBots(); }, [reloadBots]));
   const notice = backend?.notice?.() ?? null;
@@ -33,45 +31,60 @@ export default function Home() {
   const [q, setQ] = useState("");
   const [menuFor, setMenuFor] = useState<Bot | null>(null);
   const [grid, setGrid] = useState(false);
-  const primary = bots.find((b) => b.id === primaryId);
+  const listRef = useRef<FlatList<Bot>>(null);
+  const scrollY = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
+  const onListScroll = useAnimatedScrollHandler({ onScroll: (event) => { scrollY.set(event.contentOffset.y); } });
+  const expandAttention = useCallback(() => listRef.current?.scrollToOffset({ offset: 0, animated: !reducedMotion }), [reducedMotion]);
+  const primary = bots.find((b) => b.id === primaryId) ?? bots[0];
   const query = q.trim().toLowerCase();
   const others = useMemo(() => (query
     ? bots.filter((b) => `${b.name} ${b.description ?? ""} ${b.profile ?? ""}`.toLowerCase().includes(query))
     : bots.filter((b) => b.id !== primary?.id)), [bots, primary, query]);
   const onLong = useCallback((b: Bot) => setMenuFor(b), []);
+  const attention = useMemo(() => selectAttentionItems(chats, Date.now(), { loading: !botsLoaded }), [chats, botsLoaded]);
 
   if (!ready) return <View style={{ flex: 1, backgroundColor: colors.canvas }} />;
   if (!backend) return <Redirect href="/settings" />;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas, paddingTop: insets.top, paddingBottom: insets.bottom }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 8 }}>
         <Pressable accessibilityLabel="Settings" onPress={() => router.push("/preferences")} style={[circle, { backgroundColor: colors.control }]}>
-          <UserRound size={24} color={colors.textSecondary} />
+          <UserRound size={22} color={colors.textSecondary} />
         </Pressable>
-        {demo ? <Text style={[type.label, { alignSelf: "center", backgroundColor: colors.control, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }]}>Demo</Text> : null}
-        <Pressable accessibilityLabel="Add a bot" onPress={() => router.push("/new-bot")} style={circle}><Plus size={24} color={colors.text} /></Pressable>
+        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, height: 48, borderRadius: 24, paddingHorizontal: 14, backgroundColor: colors.floating, borderWidth: 1, borderColor: colors.border }}>
+          <Search size={19} color={colors.muted} />
+          <TextInput value={q} onChangeText={setQ} placeholder={demo ? "Search · Demo" : "Search"} placeholderTextColor={colors.muted} accessibilityLabel="Search bots"
+            style={{ flex: 1, color: colors.text, fontFamily: font.regular, fontSize: 16, paddingVertical: 0 }} />
+          {q ? <Pressable hitSlop={8} accessibilityLabel="Clear search" onPress={() => setQ("")}><X size={18} color={colors.muted} /></Pressable> : null}
+        </View>
+        <Pressable accessibilityLabel="Add a bot" onPress={() => router.push("/new-bot")} style={circle}><Plus size={23} color={colors.text} /></Pressable>
       </View>
 
       {notice ? <Notice text={notice} onSettings={() => router.push("/settings")} /> : null}
-      <FlatList
+      {!query ? <AttentionCarousel items={attention.items} bots={bots} loading={attention.loading} scrollY={scrollY} onSelectRing={expandAttention} /> : null}
+      <Animated.FlatList
+        ref={listRef}
         data={others} keyExtractor={(b) => b.id} keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={!query && primary ? <View><Rise play={intro} scale={0.94} dy={0}><Hero bot={primary} onLong={onLong} /></Rise><TodayCard /></View> : undefined}
-        renderItem={({ item, index }) => <Rise play={intro && index < 12} delay={80 + index * 45}><BotRow bot={item} onLong={onLong} primary={item.id === primary?.id} /></Rise>}
+        onScroll={onListScroll} scrollEventThrottle={16}
+        ListHeaderComponent={<View>
+          {!query ? <TodayCard loading={!botsLoaded} /> : null}
+          {!query && primary ? <><Text style={[type.label, { marginHorizontal: 16, marginBottom: 6, letterSpacing: 0.4 }]}>CONTINUE</Text><BotRow bot={primary} onLong={onLong} primary /></> : null}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 16, marginTop: 12, marginBottom: 6 }}>
+            <Text style={[type.label, { letterSpacing: 0.4 }]}>{query ? "SEARCH RESULTS" : "YOUR ASSISTANTS"}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="More" onPress={() => setGrid(true)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, minHeight: 44, paddingHorizontal: 4 }}>
+              <LayoutGrid size={16} color={colors.muted} /><Text style={[type.label, { color: colors.muted }]}>More</Text>
+            </Pressable>
+          </View>
+        </View>}
+        renderItem={({ item }) => <BotRow bot={item} onLong={onLong} primary={item.id === primary?.id} />}
         ListEmptyComponent={query ? <Text style={[type.bodySm, { color: colors.muted, textAlign: "center", marginTop: 40 }]}>No bots match "{q.trim()}"</Text>
-          : !bots.length ? <HomeSkeleton /> : undefined}
+          : !botsLoaded && !bots.length ? <HomeSkeleton />
+          : botsError && !bots.length ? <RosterError message={botsError} retry={() => { void reloadBots(); }} />
+          : !primary ? <EmptyAssistants add={() => router.push("/new-bot")} /> : undefined}
         contentContainerStyle={{ paddingBottom: 12 }}
       />
-
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 8 }}>
-        <Pressable accessibilityLabel="More" onPress={() => setGrid(true)} style={circle}><LayoutGrid size={22} color={colors.text} /></Pressable>
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, height: 48, borderRadius: 24, paddingHorizontal: 16, backgroundColor: colors.floating, borderWidth: 1, borderColor: colors.border }}>
-          <Search size={20} color={colors.muted} />
-          <TextInput value={q} onChangeText={setQ} placeholder="Search" placeholderTextColor={colors.muted} accessibilityLabel="Search bots"
-            style={{ flex: 1, color: colors.text, fontFamily: font.regular, fontSize: 17, paddingVertical: 0 }} />
-          {q ? <Pressable hitSlop={8} accessibilityLabel="Clear search" onPress={() => setQ("")}><X size={18} color={colors.muted} /></Pressable> : null}
-        </View>
-      </View>
 
       <Sheet visible={!!menuFor} onClose={() => setMenuFor(null)}>
         {menuFor ? <>
@@ -118,30 +131,6 @@ function StatusText({ mood, doing, fallback, unread, style }: { mood: FaceMood; 
   return <Text style={[type.bodySm, { flexShrink: 1, color: unread ? colors.textSecondary : colors.muted }, style]} numberOfLines={1}>{fallback}</Text>;
 }
 
-const Hero = memo(function Hero({ bot, onLong }: { bot: Bot; onLong: (b: Bot) => void }) {
-  const mood = useMood(bot.id), doing = useActivity(bot.id);
-  const [poke, setPoke] = useState(0);
-  const label = moodLabel(mood);
-  return (
-    <PressScale onPress={() => open(bot)} onPressIn={() => setPoke((n) => n + 1)} onLongPress={() => onLong(bot)} accessibilityLabel={`Open ${bot.name} (primary)${label ? `, ${label}` : ""}`} to={0.97}
-      style={{ alignItems: "center", marginHorizontal: 16, marginTop: 8, marginBottom: 10, paddingTop: 20, paddingBottom: 20, gap: 10, borderRadius: 28, backgroundColor: colors.botBubble, borderWidth: 1, borderColor: colors.border }}>
-      <View>
-        <Avatar bot={bot} size={128} mood={mood} badge={false} poke={poke} />
-        <View style={{ position: "absolute", right: -2, bottom: 2, width: 34, height: 34, borderRadius: 17, backgroundColor: colors.star,
-          borderWidth: 3, borderColor: colors.canvas, alignItems: "center", justifyContent: "center" }}>
-          <Star size={16} color="#fff" fill="#fff" />
-        </View>
-      </View>
-      <Text style={[type.display, { fontSize: 24, lineHeight: 30 }]}>{bot.name}</Text>
-      {mood !== "idle" && mood !== "listening" ? (
-        <Rise dy={4} key={mood} style={{ minHeight: 24, maxWidth: "80%", marginTop: -4, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong }}>
-          {mood === "success" ? <Text style={[type.bodySm, { color: colors.success }]}>Done</Text> : <StatusText mood={mood} doing={doing} fallback="" />}
-        </Rise>
-      ) : bot.description ? <Text style={[type.bodySm, { color: colors.muted, marginTop: -4, maxWidth: "80%", textAlign: "center" }]} numberOfLines={1}>{bot.description}</Text> : null}
-    </PressScale>
-  );
-});
-
 /** One list row; subscribes to its own bot's slices only, so streaming in one chat doesn't re-render the list. */
 const BotRow = memo(function BotRow({ bot, onLong, primary }: { bot: Bot; onLong: (b: Bot) => void; primary: boolean }) {
   const n = useUnread(bot.id), preview = usePreview(bot.id), mood = useMood(bot.id), doing = useActivity(bot.id), at = useLastAt(bot.id);
@@ -175,10 +164,6 @@ const BotRow = memo(function BotRow({ bot, onLong, primary }: { bot: Bot; onLong
 function HomeSkeleton() {
   return (
     <View accessibilityLabel="Loading your bots" style={{ paddingTop: 8 }}>
-      <View style={{ alignItems: "center", gap: 14, paddingTop: 18, paddingBottom: 30 }}>
-        <Skeleton width={128} height={128} radius={36} />
-        <Skeleton width={120} height={22} radius={11} />
-      </View>
       {[0, 1, 2].map((i) => (
         <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 18, paddingVertical: 11 }}>
           <Skeleton width={52} height={52} radius={16} />
@@ -187,6 +172,23 @@ function HomeSkeleton() {
       ))}
     </View>
   );
+}
+
+function RosterError({ message, retry }: { message: string; retry: () => void }) {
+  return <View style={{ gap: 8, margin: 16, padding: 14, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
+    <Text style={[type.bodySm, { color: colors.textSecondary }]}>{message}</Text>
+    <Pressable onPress={retry} accessibilityRole="button" style={{ minHeight: 44, justifyContent: "center" }}><Text style={[type.bodySm, { color: colors.accentText }]}>Retry</Text></Pressable>
+  </View>;
+}
+
+function EmptyAssistants({ add }: { add: () => void }) {
+  return <View style={{ alignItems: "center", gap: 8, marginHorizontal: 24, marginTop: 24, padding: 20 }}>
+    <Text style={type.title}>No assistants yet</Text>
+    <Text style={[type.bodySm, { color: colors.muted, textAlign: "center" }]}>Add an assistant to start a conversation.</Text>
+    <Pressable onPress={add} accessibilityRole="button" style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.control }}>
+      <Text style={[type.bodySm, { color: colors.accentText }]}>Add an assistant</Text>
+    </Pressable>
+  </View>;
 }
 
 /** A server notice (e.g. why hermes-bridge is off). Collapsed to 3 lines; tap to read all of it. */
