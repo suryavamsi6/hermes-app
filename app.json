@@ -3,7 +3,7 @@
     "name": "Hermes",
     "slug": "surya",
     "scheme": "hermes",
-    "version": "0.11.17",
+    "version": "0.11.18",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#09090b",
@@ -13,7 +13,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#09090b"
       },
-      "versionCode": 39,
+      "versionCode": 40,
       "allowBackup": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",

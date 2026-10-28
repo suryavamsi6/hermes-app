@@ -30,9 +30,9 @@ export function ApprovalCard({ approval, respond, onEdit }: { approval: Approval
   const busy = sending !== null;
 
   return (
-    <View accessibilityRole="alert" style={{ marginTop: 4, padding: 16, gap: 12, borderRadius: radii.card, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.warning, shadowColor: colors.warning, shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
+    <View accessibilityRole="alert" style={{ marginTop: 4, padding: 16, gap: 12, borderRadius: radii.card, backgroundColor: colors.approvalSurface, borderWidth: 1, borderColor: colors.warning, shadowColor: colors.warning, shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <View style={{ width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(245,183,41,0.14)" }}>
+        <View style={{ width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.approvalIcon }}>
           <ShieldQuestion size={15} color={colors.warning} />
         </View>
         <Text style={[type.label, { color: colors.warning, letterSpacing: 0.5, fontFamily: font.semibold }]}>NEEDS YOUR OK</Text>
@@ -42,7 +42,7 @@ export function ApprovalCard({ approval, respond, onEdit }: { approval: Approval
         <Text style={type.bodySm}>The run is paused. Nothing happens until you choose.</Text>
       </View>
       {approval.detail ? (
-        <View style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.inset, backgroundColor: colors.control }}>
+        <View style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.inset, backgroundColor: colors.approvalDetail, borderWidth: 1, borderColor: colors.border }}>
           <Text selectable style={{ fontFamily: font.mono, fontSize: 13, lineHeight: 19, color: colors.text }}>{approval.detail}</Text>
         </View>
       ) : null}

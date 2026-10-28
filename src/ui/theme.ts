@@ -4,7 +4,7 @@ const light = {
   canvas: "#fffaf2", surface: "#ffffff", floating: "#fffdf9", control: "#f4efe7", controlActive: "#eae1f5",
   border: "#e8e0d5", borderStrong: "#d8cdbf", text: "#171525", textSecondary: "#48465a", muted: "#6f6b7d", dim: "#777386",
   accentText: "#98520c", action: "#c16b1b", actionForeground: "#ffffff", star: "#d58a16", danger: "#c83d42", success: "#159b72", warning: "#a46600",
-  userBubble: "#f4e7d7", botBubble: "#f1eafa", scrim: "rgba(15,12,25,0.48)",
+  userBubble: "#dbead4", botBubble: "#ffffff", approvalSurface: "#fff6e8", approvalDetail: "#ffffff", approvalIcon: "rgba(246,200,96,0.24)", scrim: "rgba(15,12,25,0.48)",
 };
 const dark = {
   canvas: "#09090b",          // screen background
@@ -27,6 +27,9 @@ const dark = {
   warning: "#f0b35b",
   userBubble: "#222227",
   botBubble: "#131316",
+  approvalSurface: "#1d1912",
+  approvalDetail: "#09090b",
+  approvalIcon: "rgba(246,200,96,0.14)",
   scrim: "rgba(0,0,0,0.62)",
 };
 export const colors = { ...dark };
