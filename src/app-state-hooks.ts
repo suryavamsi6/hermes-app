@@ -120,7 +120,10 @@ export const useChat = (botId?: string): BotChat => useStore(live, (s) => (botId
 export const useAttentionChats = () => useStore(live, (s) => s.chats);
 export const useUnread = (botId: string) => useStore(live, (s) => s.unread[botId] ?? 0);
 export const useTotalUnread = () => useStore(live, (s) => Object.values(s.unread).reduce((n, v) => n + (v ?? 0), 0));
-export const useUnreadBots = () => useStore(live, (s) => Object.keys(s.unread).filter((id) => (s.unread[id] ?? 0) > 0));
+// The selector must return a stable value (a primitive): useSyncExternalStore compares getSnapshot
+// results during every commit, and a fresh array here re-triggers the commit until React's
+// "Maximum update depth exceeded" cap. Same pattern as useApprovalBots below.
+export const useUnreadBots = () => useStore(live, (s) => Object.keys(s.unread).filter((id) => (s.unread[id] ?? 0) > 0).sort().join(","));
 export const useApprovalBots = () => useStore(live, (s) => Object.entries(s.chats).filter(([, c]) => c.turns.some((t) => t.role === "assistant" && !!(t as any).approval)).map(([id]) => id).join(","));
 export const useBusyCount = () => useStore(live, (s) => Object.values(s.chats).filter((c) => c.busy).length);
 export const usePreview = (botId: string) => useStore(live, (s) => s.preview[botId] ?? "");
