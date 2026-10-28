@@ -92,7 +92,7 @@ export default function Home() {
             <Avatar bot={menuFor} size={40} badge={false} /><Text style={type.title} numberOfLines={1}>{menuFor.name}</Text>
           </View>
           {menuFor.id === primary?.id
-            ? <SheetRow icon={<Star size={20} color={colors.star} fill={colors.star} />} label="This is your primary bot" />
+            ? <SheetRow icon={<Star size={20} color={colors.star} fill={colors.star} />} label="This was your primary bot" />
             : <SheetRow icon={<Star size={20} color={colors.star} />} label="Make primary" onPress={() => { void setPrimary(menuFor.id); setMenuFor(null); }} />}
           <SheetRow icon={<Settings size={20} color={colors.textSecondary} />} label="Bot settings" onPress={() => { setMenuFor(null); router.push(`/bot-info/${menuFor.id}`); }} />
         </> : null}
