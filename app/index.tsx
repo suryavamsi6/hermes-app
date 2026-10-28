@@ -6,13 +6,14 @@ import { CalendarClock, CircleAlert, LayoutGrid, LoaderCircle, ShieldQuestion, P
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Bot } from "../src/backend";
-import { useActivity, useApp, useAttentionChats, useLastAt, useMood, usePreview, useUnread } from "../src/app-state";
+import { useActivity, useApp, useAttentionChats, useLastAt, useMood, usePreview, useTotalUnread, useUnread, useUnreadBots } from "../src/app-state";
 import { moodLabel, type FaceMood } from "../src/ui/face-state";
 import { Avatar } from "../src/ui/kit";
 import { Skeleton, Spin } from "../src/ui/motion";
-import { TodayCard } from "../src/ui/today-card";
 import { selectAttentionItems } from "../src/ui/attention-items";
 import { AttentionCarousel } from "../src/ui/attention-carousel";
+import { isFailing } from "../src/job-text";
+import { useLoad } from "../src/use-load";
 
 import { Sheet, SheetRow } from "../src/ui/sheet";
 import { relTime } from "../src/ui/time";
@@ -24,6 +25,8 @@ const open = (b: Bot) => router.push(`/bot/${encodeURIComponent(b.id)}`);
 export default function Home() {
   const { ready, backend, bots, botsLoaded, botsError, demo, primaryId, setPrimary, reloadBots } = useApp();
   const chats = useAttentionChats();
+  const unread = useTotalUnread();
+  const unreadIds = useUnreadBots();
   // With hermes-bridge the roster is the server's profile list: refresh it whenever Home shows again.
   const focusedBefore = useRef(false);
   useFocusEffect(useCallback(() => {
@@ -46,7 +49,23 @@ export default function Home() {
     ? bots.filter((b) => `${b.name} ${b.description ?? ""} ${b.profile ?? ""}`.toLowerCase().includes(query))
     : bots.filter((b) => b.id !== primary?.id)), [bots, primary, query]);
   const onLong = useCallback((b: Bot) => setMenuFor(b), []);
-  const attention = useMemo(() => selectAttentionItems(chats, Date.now(), { loading: !botsLoaded }), [chats, botsLoaded]);
+  const firstUnread = useMemo(() => {
+    const ids = new Set(unreadIds ? unreadIds.split(",") : []);
+    return bots.find((bot) => ids.has(bot.id));
+  }, [bots, unreadIds]);
+  const routineFailures = useLoad(backend && !query && bots.length && bots.length <= 12 ? async () => {
+    const all = await Promise.all(bots.map(async (bot) => {
+      try {
+        return (await backend.listJobs(bot)).filter(isFailing).map((job) => ({ botId: bot.id, jobId: job.id, name: job.name, detail: job.lastError }));
+      } catch { return []; }
+    }));
+    return all.flat();
+  } : null, [backend, query, bots.map((bot) => bot.id).join(",")]);
+  const attention = useMemo(() => selectAttentionItems(chats, Date.now(), {
+    loading: !botsLoaded,
+    unread: unread > 0 && firstUnread ? { botId: firstUnread.id, count: unread } : undefined,
+    routines: routineFailures.data ?? [],
+  }), [chats, botsLoaded, unread, firstUnread, routineFailures.data]);
 
   if (!ready) return <View style={{ flex: 1, backgroundColor: colors.canvas }} />;
   if (!backend) return <Redirect href="/settings" />;
@@ -74,7 +93,6 @@ export default function Home() {
         data={others} keyExtractor={(b) => b.id} keyboardShouldPersistTaps="handled"
         onScroll={onListScroll} scrollEventThrottle={16}
         ListHeaderComponent={<View>
-          {!query ? <TodayCard loading={!botsLoaded} /> : null}
           {!query && primary ? <><Text style={[type.label, { marginHorizontal: 16, marginBottom: 6, letterSpacing: 0.1 }]}>Continue</Text><BotRow bot={primary} onLong={onLong} primary /></> : null}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 16, marginTop: 12, marginBottom: 6 }}>
             <Text style={[type.label, { letterSpacing: 0.1 }]}>{query ? "Search results" : "Your assistants"}</Text>

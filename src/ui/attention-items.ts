@@ -9,8 +9,10 @@ export type AttentionItem =
   | (Base & { kind: "approval"; botId: string; turnId: string; destination: { kind: "chat"; path: string } })
   | (Base & { kind: "running"; botId: string; turnId: string; startedAt?: number; destination: { kind: "chat"; path: string } })
   | (Base & { kind: "failed"; botId: string; turnId: string; steps: Step[]; destination: { kind: "steps"; path: string } })
+  | (Base & { kind: "unread"; botId: string; destination: { kind: "chat"; path: string } })
+  | (Base & { kind: "routine"; botId: string; jobId: string; destination: { kind: "routines"; path: string } })
   | (Base & { kind: "time"; destination: null });
-export type AttentionCounts = { approval: number; running: number; failed: number; time: number };
+export type AttentionCounts = { approval: number; running: number; failed: number; time: number; unread?: number; routine?: number };
 export type AttentionSelection = { items: AttentionItem[]; counts: AttentionCounts; loading: boolean };
 
 const chatPath = (id: string) => `/bot/${encodeURIComponent(id)}`;
@@ -46,7 +48,12 @@ export function formatDeviceTime(now: number, locale?: string): string {
 export function selectAttentionItems(
   chats: Record<string, AttentionChat>,
   now: number,
-  options: { loading?: boolean; locale?: string } = {},
+  options: {
+    loading?: boolean;
+    locale?: string;
+    unread?: { botId: string; count: number };
+    routines?: { botId: string; jobId: string; name: string; detail?: string }[];
+  } = {},
 ): AttentionSelection {
   const ids = assistants(chats);
   const items: AttentionItem[] = [];
@@ -80,9 +87,24 @@ export function selectAttentionItems(
         destination: { kind: "steps", path: stepsPath(botId, turn.id) } });
     }
   }
+  for (const routine of options.routines ?? []) {
+    items.push({ key: `routine:${routine.botId}:${routine.jobId}`, kind: "routine", botId: routine.botId, jobId: routine.jobId,
+      metric: "Failed", title: routine.name, detail: routine.detail,
+      destination: { kind: "routines", path: `/routines?bot=${encodeURIComponent(routine.botId)}&job=${encodeURIComponent(routine.jobId)}` } });
+  }
+  if (options.unread && options.unread.count > 0) {
+    const { botId, count } = options.unread;
+    items.push({ key: `unread:${botId}`, kind: "unread", botId, metric: String(count), title: `${count} unread ${count === 1 ? "reply" : "replies"}`,
+      destination: { kind: "chat", path: chatPath(botId) } });
+  }
   items.push({ key: "time:device", kind: "time", metric: formatDeviceTime(now, options.locale), title: "Local time", destination: null });
   const counts: AttentionCounts = { approval: 0, running: 0, failed: 0, time: 0 };
-  for (const item of items) counts[item.kind] += item.kind === "failed" ? Number(item.metric) : 1;
+  for (const item of items) {
+    if (item.kind === "failed") counts.failed += Number(item.metric);
+    else if (item.kind === "approval" || item.kind === "running" || item.kind === "time") counts[item.kind]++;
+    else if (item.kind === "unread") counts.unread = (counts.unread ?? 0) + 1;
+    else if (item.kind === "routine") counts.routine = (counts.routine ?? 0) + 1;
+  }
   return { items, counts, loading: !!options.loading || ids.some((id) => !chats[id].loaded) };
 }
 

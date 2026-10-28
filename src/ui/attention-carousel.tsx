@@ -167,8 +167,16 @@ function AttentionCard({ item, bot, index, selected, width, spacing, position, s
       { rotateY: `${geometry.rotateY}deg` }, { scale: geometry.scale },
     ] };
   });
-  const labelColor = item.kind === "failed" ? colors.danger : item.kind === "approval" ? colors.warning : item.kind === "running" ? colors.success : colors.accentText;
-  const kindLabel = item.kind === "approval" ? "Needs your OK" : item.kind === "running" ? "In progress" : item.kind === "failed" ? "Needs attention" : "Local time";
+  const labelColor = item.kind === "failed" || item.kind === "routine" ? colors.danger
+    : item.kind === "approval" ? colors.warning
+    : item.kind === "running" ? colors.success
+    : colors.accentText;
+  const kindLabel = item.kind === "approval" ? "Needs your OK"
+    : item.kind === "running" ? "In progress"
+    : item.kind === "failed" ? "Needs attention"
+    : item.kind === "routine" ? "Routine failed"
+    : item.kind === "unread" ? "Unread replies"
+    : "Local time";
   const title = item.title.length > 88 ? `${item.title.slice(0, 85)}…` : item.title;
   const identity = bot?.name ? `${bot.name} · ${kindLabel}` : item.kind === "time" ? "Your device" : kindLabel;
   return <Animated.View style={[{ position: "absolute", left: "50%", marginLeft: -width / 2, top: 20, width, minHeight: 188 }, style]}>
