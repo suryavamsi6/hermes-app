@@ -141,10 +141,10 @@ export class LiveBackend implements Backend {
    *  Hermes titles are unique, so never blindly create a second one) -> create "Bot Chat" -> if the
    *  title is taken by a row we can't see, or the Bot Chat refused phone turns before, a phone session
    *  "<name> · Hermes Mobile" (suffixed on collision, untitled as a last resort). */
-  async botChatSession(b: Bot) {
+  async botChatSession(b: Bot, validateCached = true) {
     const c = this.client(b);
     const cached = await Store.getItem(CHAT_KEY(b.profile));
-    if (cached && (await c.sessionExists(cached))) return cached;
+    if (cached && (!validateCached || await c.sessionExists(cached))) return cached;
     let id: string | undefined;
     if ((await Store.getItem(OWN_KEY(b.profile))) !== "1") {
       id = await c.findSessionByTitle(BOT_CHAT_TITLE);

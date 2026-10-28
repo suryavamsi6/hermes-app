@@ -25,7 +25,11 @@ export default function Home() {
   const { ready, backend, bots, botsLoaded, botsError, demo, primaryId, setPrimary, reloadBots } = useApp();
   const chats = useAttentionChats();
   // With hermes-bridge the roster is the server's profile list: refresh it whenever Home shows again.
-  useFocusEffect(useCallback(() => { void reloadBots(); }, [reloadBots]));
+  const focusedBefore = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (focusedBefore.current) void reloadBots();
+    else focusedBefore.current = true; // AppProvider already starts the initial roster request.
+  }, [reloadBots]));
   const notice = backend?.notice?.() ?? null;
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState("");

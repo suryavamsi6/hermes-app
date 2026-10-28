@@ -44,6 +44,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const active = useRef<string | null>(null);
   const aborts = useRef<Record<string, StreamHandle>>({});
   const loadGeneration = useRef<Record<string, number>>({});
+  const chatLoads = useRef<Record<string, Promise<void>>>({});
   useEffect(() => {
     let mounted = true;
     const initialize = async () => {
@@ -73,21 +74,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { setChats(() => ({})); setPreview(() => ({})); setUnread(() => ({})); setBotsLoaded(false); setBotsError(undefined); void reloadBots(); }, [reloadBots]);
   const patchChat = useCallback((botId: string, f: (c: BotChat) => BotChat) => setChats((all) => ({ ...all, [botId]: f(all[botId] ?? EMPTY) })), []);
   const patchTurn = useCallback((botId: string, turnId: string, f: (t: AssistantTurn) => AssistantTurn) => patchChat(botId, (c) => ({ ...c, turns: c.turns.map((t) => (t.id === turnId && t.role === "assistant" ? f(t) : t)) })), [patchChat]);
-  const loadChat = useCallback(async (bot: Bot, force = false) => {
-    if (!backend || (!force && chats()[bot.id]?.loaded)) return;
+  const loadChat = useCallback((bot: Bot, force = false): Promise<void> => {
+    if (!backend || (!force && chats()[bot.id]?.loaded)) return Promise.resolve();
+    const inFlight = chatLoads.current[bot.id];
+    if (inFlight && !force) return inFlight;
     const generation = (loadGeneration.current[bot.id] ?? 0) + 1;
     loadGeneration.current[bot.id] = generation;
     if (force) { patchChat(bot.id, () => EMPTY); setPreview((p) => { const { [bot.id]: _, ...rest } = p; return rest; }); }
-    if (bot.needsKey) { patchChat(bot.id, (c) => ({ ...c, loaded: true })); setPreview((p) => ({ ...p, [bot.id]: "Tap to set up chat" })); return; }
-    try {
-      const sessionId = await backend.botChatSession(bot);
-      const raw = await backend.chat(bot).messages(sessionId);
-      if (loadGeneration.current[bot.id] !== generation) return;
-      const { history, turns } = loadTurns(raw);
-      patchChat(bot.id, (c) => ({ ...c, sessionId, turns: c.turns.length ? c.turns : turns, loaded: true, error: undefined }));
-      const last = history[history.length - 1];
-      if (last) { setPreview((p) => ({ ...p, [bot.id]: previewOf(last) })); if (last.at) touch(bot.id, last.at); }
-    } catch (e: any) { if (loadGeneration.current[bot.id] === generation) patchChat(bot.id, (c) => ({ ...c, loaded: true, error: String(e?.message ?? e) })); }
+    if (bot.needsKey) { patchChat(bot.id, (c) => ({ ...c, loaded: true })); setPreview((p) => ({ ...p, [bot.id]: "Tap to set up chat" })); return Promise.resolve(); }
+    const task = (async () => {
+      try {
+        let sessionId = await backend.botChatSession(bot, false);
+        let raw: unknown;
+        try { raw = await backend.chat(bot).messages(sessionId); }
+        catch (e: any) {
+          // The saved session id is trusted for the fast path. If it was removed on the server,
+          // clear it once and resolve the bot's current chat before surfacing an error.
+          if (!backend.forgetSession || (e?.status !== 404 && e?.code !== "session_not_found")) throw e;
+          await backend.forgetSession(bot);
+          sessionId = await backend.botChatSession(bot);
+          raw = await backend.chat(bot).messages(sessionId);
+        }
+        if (loadGeneration.current[bot.id] !== generation) return;
+        const { history, turns } = loadTurns(raw);
+        patchChat(bot.id, (c) => ({ ...c, sessionId, turns: c.turns.length ? c.turns : turns, loaded: true, error: undefined }));
+        const last = history[history.length - 1];
+        if (last) { setPreview((p) => ({ ...p, [bot.id]: previewOf(last) })); if (last.at) touch(bot.id, last.at); }
+      } catch (e: any) { if (loadGeneration.current[bot.id] === generation) patchChat(bot.id, (c) => ({ ...c, loaded: true, error: String(e?.message ?? e) })); }
+    })();
+    chatLoads.current[bot.id] = task;
+    void task.finally(() => { if (chatLoads.current[bot.id] === task) delete chatLoads.current[bot.id]; });
+    return task;
   }, [backend, patchChat]);
   useEffect(() => { bots.forEach((b) => void loadChat(b)); }, [bots]);
   const runTurn = useCallback(async (bot: Bot, aid: string) => {

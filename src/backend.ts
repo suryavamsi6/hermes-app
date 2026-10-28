@@ -76,7 +76,9 @@ export interface Backend {
   removeBot(id: string): Promise<void>;
   chat(b: Bot): ChatClient;
   /** The single continuous conversation of this bot: a session titled "Bot Chat" (Hermes Bot Mode). */
-  botChatSession(b: Bot): Promise<string>;
+  /** `validateCached: false` skips a round-trip existence check; callers that fetch messages should
+   *  use this fast path and recover a stale id from the message response. */
+  botChatSession(b: Bot, validateCached?: boolean): Promise<string>;
   /** Live only: the profile's Bot Chat refused a phone turn; use a phone session from now on. */
   abandonBotChat?(b: Bot): Promise<void>;
   /** /new: start a fresh session for this bot's chat and chat there from now on. The old session
