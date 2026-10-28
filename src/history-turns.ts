@@ -26,7 +26,23 @@ export const toTurns = (history: HistoryMessage[], steps: Step[][] = []): Turn[]
 const keptSteps = (shown: Turn[], history: HistoryMessage[], lists: Step[][]): Step[][] =>
   history.map((m, i) => (m.role === "assistant" ? withKeptSteps(shown, m, lists[i] ?? []).steps : []));
 
+/** Keep visible IDs only when a history row has one unambiguous exact text match. */
+export function preserveHistoryIds(turns: Turn[], shown: Turn[]): Turn[] {
+  return turns.map((turn) => {
+    const raw = (turn as { raw?: string }).raw ?? turn.text;
+    const matches = shown.filter((candidate) => !candidate.local && candidate.role === turn.role &&
+      (candidate.text === raw || (candidate as { raw?: string }).raw === raw));
+    return matches.length === 1 ? { ...turn, id: matches[0].id } as Turn : turn;
+  });
+}
+
+/** A history response may only replace the exact turn snapshot it was requested for. */
+export function historyRefreshCanApply(startedWith: Turn[], current: Turn[] | undefined, busy: boolean): boolean {
+  return !busy && current === startedWith;
+}
+
 export const loadTurns = (raw: unknown, shown: Turn[] = []) => {
   const history = parseMessages(raw);
-  return { history, turns: toTurns(history, keptSteps(shown, history, stepsFromHistory(raw))) };
+  const turns = toTurns(history, keptSteps(shown, history, stepsFromHistory(raw)));
+  return { history, turns: preserveHistoryIds(turns, shown) };
 };

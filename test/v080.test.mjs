@@ -140,6 +140,53 @@ test("activity log and plan come from session tool calls", () => {
   assert.strictEqual(m.currentPlan({ data: [] }), null);
 });
 
+test("history refresh keeps uniquely matched local steps and refuses ambiguous duplicate replies", () => {
+  const failure = { id: "local", tool: "terminal", status: "failed" };
+  assert.deepStrictEqual(m.withKeptSteps([{ role: "assistant", text: "same", steps: [failure] }], { role: "assistant", text: "same" }, []).steps, [failure]);
+  const indexed = [{ id: "history", tool: "search", status: "completed" }];
+  assert.deepStrictEqual(m.withKeptSteps([
+    { role: "assistant", text: "same", steps: [failure] },
+    { role: "assistant", text: "same", steps: [] },
+  ], { role: "assistant", text: "same" }, indexed).steps, indexed);
+});
+
+test("changed history keeps only unambiguous matching turn IDs and adds new turns", () => {
+  const shown = [
+    { id: "user-old", role: "user", text: "first" },
+    { id: "assistant-old", role: "assistant", text: "reply" },
+  ];
+  const next = m.loadTurns({ data: [
+    { role: "user", content: "first" },
+    { role: "assistant", content: "reply" },
+    { role: "user", content: "next" },
+  ] }, shown).turns;
+  assert.ok(next[2].id);
+  assert.deepStrictEqual(next.slice(0, 2).map((turn) => turn.id), ["user-old", "assistant-old"]);
+  assert.ok(!["user-old", "assistant-old"].includes(next[2].id));
+  const duplicate = m.preserveHistoryIds([{ id: "new", role: "assistant", text: "reply" }], [
+    { id: "one", role: "assistant", text: "reply" }, { id: "two", role: "assistant", text: "reply" },
+  ]);
+  assert.equal(duplicate[0].id, "new");
+});
+
+test("history refresh skips changed in-flight snapshots and an empty new-chat history resets turns", () => {
+  const turns = [{ id: "old", role: "user", text: "old session" }];
+  assert.equal(m.historyRefreshCanApply(turns, turns, false), true);
+  assert.equal(m.historyRefreshCanApply(turns, [...turns, { id: "live", role: "assistant", text: "running" }], false), false);
+  assert.equal(m.historyRefreshCanApply(turns, turns, true), false);
+  assert.deepEqual(m.loadTurns({ data: [] }, turns).turns, []);
+});
+
+test("unknown history tool results do not attach to another call", () => {
+  const steps = m.stepsFromHistory({ data: [
+    { role: "assistant", content: "working", tool_calls: [{ id: "known", function: { name: "terminal", arguments: "{}" } }] },
+    { role: "tool", tool_call_id: "missing", tool_name: "terminal", content: '{"error":"unmatched"}' },
+    { role: "user", content: "next" },
+  ] });
+  assert.equal(steps[0][0].status, "completed");
+  assert.equal(steps[0][0].result, undefined);
+});
+
 test("v0.10.1: a failed routine carries its error and Home links straight to it", () => {
   const j = m.toJob({ id: "j1", name: "Brief", prompt: "x", enabled: true, last_status: "error", last_error: "RuntimeError: provider timeout" });
   assert.strictEqual(j.lastError, "RuntimeError: provider timeout");

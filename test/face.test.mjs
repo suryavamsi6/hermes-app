@@ -42,6 +42,18 @@ test("face mood: success only from the short happy flag, error only from a real 
   assert.strictEqual(m.faceMood(chat([user, reply()], { busy: true }), { happy: true }), "thinking", "never celebrate while still running");
 });
 
+test("face mood priority: approval and queued first, then busy, success, error, listening and idle", () => {
+  const approval = { requestId: "r", generation: 1, title: "Run" };
+  assert.strictEqual(m.faceMood(chat([reply({ approval })], { busy: true }), { happy: true, listening: true }), "waiting");
+  assert.strictEqual(m.faceMood(chat([reply({ status: "queued" })], { busy: true }), { happy: true }), "waiting");
+  assert.strictEqual(m.faceMood(chat([reply()], { busy: true }), { happy: true, listening: true }), "thinking");
+  assert.strictEqual(m.faceMood(chat([reply({ text: "draft" })], { busy: true })), "working");
+  assert.strictEqual(m.faceMood(chat([reply({ status: "completed" })]), { happy: true, listening: true }), "success");
+  assert.strictEqual(m.faceMood(chat([reply({ status: "failed" })]), { listening: true }), "error");
+  assert.strictEqual(m.faceMood(chat([]), { listening: true }), "listening");
+  assert.strictEqual(m.faceMood(chat([])), "idle");
+});
+
 test("turn mood (status-line face) and words for every mood", () => {
   assert.strictEqual(m.turnMood(reply()), "thinking");
   assert.strictEqual(m.turnMood(reply({ steps: [{ id: "0", tool: "web_search", status: "running" }] })), "working");
@@ -58,7 +70,7 @@ test("turn mood (status-line face) and words for every mood", () => {
 test("reduced motion: no loops, blinks, glances, breathing, celebration or tap reaction for any mood", () => {
   for (const mood of m.FACE_MOODS) {
     const f = m.faceMotion(mood, { reduced: true, active: true });
-    assert.deepStrictEqual(f, { blink: false, glance: false, breathe: false, loop: "none", celebrate: false, react: false }, mood);
+    assert.deepStrictEqual(f, { blink: false, glance: false, breathe: false, loop: "none", celebrate: false }, mood);
   }
   assert.deepStrictEqual(m.motionPolicy({ reduced: true }), { transitions: false, ambient: false, flourish: false });
   assert.strictEqual(m.dur(200, m.motionPolicy({ reduced: true })), 0, "transitions become instant");
@@ -89,6 +101,19 @@ test("visible motion per mood: idle lives a little; each busy mood has its own l
   assert.strictEqual(on("waiting").loop, "check");
   assert.ok(on("success").celebrate && !on("success").blink);
   assert.ok(!on("listening").glance, "listening keeps its eyes on you");
+});
+
+test("layer geometry scales shallow depth for 32, 52 and hero faces", () => {
+  const small = m.faceLayerGeometry(32), row = m.faceLayerGeometry(52), hero = m.faceLayerGeometry(128);
+  assert.ok(small.depth < row.depth && row.depth < hero.depth);
+  assert.ok(small.depth <= 2.5, "small chat avatars keep a restrained rim");
+  assert.strictEqual(hero.depth, 5, "hero depth is capped");
+  for (const g of [small, row, hero]) {
+    assert.strictEqual(g.faceY, 0);
+    assert.strictEqual(g.backY, g.depth);
+    assert.strictEqual(g.shadowY, g.depth * 1.65);
+    assert.ok(g.eyeY < 0 && Math.abs(g.eyeY) < g.depth);
+  }
 });
 
 test("idle rhythm: deterministic per bot, uneven, within calm bounds, and different between bots", () => {

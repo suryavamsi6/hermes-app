@@ -10,6 +10,8 @@ export type AssistantTurn = {
   runId?: string; approval?: Approval; error?: string; errorCode?: string;
   /** ms since epoch, for date dividers and the long-press time. */
   at?: number;
+  /** Trustworthy local start time for this run; unlike `at`, this is safe for elapsed time. */
+  startedAt?: number;
   /** Hermes's latest thinking summary (reasoning.available), shown as the live status line. */
   thought?: string;
   /** The connection dropped and the app is re-attaching to the run (shown calmly, not as an error). */
@@ -115,7 +117,16 @@ export function applyStream(turns: Turn[], anchorId: string, actions: TurnAction
   const seal = (i: number, text: string): AssistantTurn =>
     ({ ...out[i], ...(text ? { text } : {}), status: "completed", note: true, thought: undefined, reconnecting: false });
   for (const a of actions) {
-    if (a.type !== "interim") { out[open] = reduce(out[open], a); continue; }
+    if (a.type !== "interim") {
+      if (a.type === "tool" && a.phase === "started" && out[open].text.trim()) {
+        const cur = out[open];
+        out[open] = { ...cur, status: "completed", note: true, thought: undefined, reconnecting: false };
+        out.push({ ...initialTurn(freshId()), at, startedAt: cur.startedAt, prompt: cur.prompt, key: cur.key, runId: cur.runId });
+        open = out.length - 1;
+      }
+      out[open] = reduce(out[open], a);
+      continue;
+    }
     const cur = out[open];
     const prev = open > 0 ? out[open - 1] : undefined;
     if (prev?.note && prev.text.trim() === a.text) continue; // redelivered after the note was already sealed
@@ -123,10 +134,10 @@ export function applyStream(turns: Turn[], anchorId: string, actions: TurnAction
     const same = shown === a.text || (a.alreadyStreamed && (shown === a.text || shown.endsWith(a.text)));
     out[open] = { ...seal(open, shown ? "" : a.text), text: shown || a.text };
     if (shown && !same) {
-      out.push({ ...initialTurn(freshId()), at, text: a.alreadyStreamed ? "" : a.text, prompt: cur.prompt, key: cur.key, runId: cur.runId });
+      out.push({ ...initialTurn(freshId()), at, startedAt: cur.startedAt, text: a.alreadyStreamed ? "" : a.text, prompt: cur.prompt, key: cur.key, runId: cur.runId });
       open = out.length - 1;
     }
-    out.push({ ...initialTurn(freshId()), at, prompt: cur.prompt, key: cur.key, runId: cur.runId });
+    out.push({ ...initialTurn(freshId()), at, startedAt: cur.startedAt, prompt: cur.prompt, key: cur.key, runId: cur.runId });
     open = out.length - 1;
   }
   return [...head, ...out, ...tail];

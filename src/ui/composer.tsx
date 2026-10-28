@@ -1,6 +1,4 @@
-// Composer: a round "+" button on the left (the only attach control; opens Photos / Camera / Files, long
-// press = camera), then an "Ask <bot>" pill with the attachment strip, a dictation mic and one round action button: send when idle; while a reply is running it's
-// "add to this reply" (steer) if you typed something, else stop.
+// One composer surface holds attachments, the bot's draft, voice and the send/steer/stop action.
 import { ArrowUp, Camera, CornerDownRight, FileText, Image as ImageIcon, Mic, Plus, Square, X } from "lucide-react-native";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
@@ -109,14 +107,14 @@ export const Composer = memo(function Composer({ botId, busy, onSend, onStop, on
           <Pressable accessibilityLabel="Cancel editing" hitSlop={8} onPress={onCancelEdit}><X size={16} color={colors.muted} /></Pressable>
         </View>
       ) : null}
-      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
+      <View style={{ minHeight: 56, flexDirection: "row", alignItems: "flex-end", gap: 4, backgroundColor: colors.surface, borderRadius: radii.card, borderWidth: 1.5,
+        borderColor: voice.listening ? colors.accentText : colors.border, paddingHorizontal: 5, paddingVertical: 4 }}>
         <Pressable accessibilityLabel="Attach photos or files" accessibilityHint="Opens Photos, Camera and Files" disabled={working} hitSlop={6}
           onPress={() => { tapHaptic(); setMenu(true); }} onLongPress={() => void attach("camera")}
-          style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.control : colors.floating, borderWidth: 1, borderColor: colors.border })}>
+          style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? colors.control : "transparent" })}>
           {working ? <ActivityIndicator color={colors.muted} /> : <Plus size={24} strokeWidth={2.2} color={colors.text} />}
         </Pressable>
-        <View style={{ flex: 1, minHeight: 52, backgroundColor: colors.surface, borderRadius: radii.pill, borderWidth: 1.5,
-          borderColor: voice.listening ? colors.accentText : colors.border, paddingLeft: 18, paddingRight: 5, paddingVertical: 4 }}>
+        <View style={{ flex: 1, minHeight: 44, justifyContent: "flex-end", paddingLeft: 8 }}>
           {files.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8, paddingBottom: 2 }}>
               {files.map((f, i) => (

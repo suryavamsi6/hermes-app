@@ -51,6 +51,9 @@ export function stepsFromHistory(raw: unknown): Step[][] {
 
 /** Prefer steps already on the matching shown turn. History fills a turn that lost them. */
 export function withKeptSteps(shown: Row[], row: { role: string; text: string }, historySteps: Step[] = []): { steps: Step[] } {
-  const hit = shown.find((t) => t.role === row.role && (t.text === row.text || (t as { raw?: string }).raw === row.text) && t.steps?.length);
+  const hits = shown.filter((t) => t.role === row.role && (t.text === row.text || (t as { raw?: string }).raw === row.text));
+  // Identical replies are not enough to prove turn identity. Let history supply its indexed steps
+  // rather than copying a potentially unrelated local failure onto one of the duplicates.
+  const hit = hits.length === 1 && hits[0].steps?.length ? hits[0] : undefined;
   return { steps: hit?.steps?.length ? hit.steps : historySteps };
 }
