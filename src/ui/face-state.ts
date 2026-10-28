@@ -72,10 +72,16 @@ export const POSE: Record<FaceMood, Pose> = {
   error:     { lookX: 0,    lookY: 0.55, eyeX: 0.96, eyeY: 0.7,  tilt: -3, lift: 0.02,  joy: 0, worry: 1 },
 };
 
+/** Shallow layer offsets in points. At avatar sizes the stack stays legible without a heavy rim. */
+export function faceLayerGeometry(size: number) {
+  const depth = Math.min(5, Math.max(1.25, size * 0.075));
+  return { depth, shadowY: depth * 1.65, backY: depth, faceY: 0, eyeY: -depth * 0.45 };
+}
+
 /** The ambient loop a mood runs on top of its pose (only while motion is allowed). */
 export type FaceLoop = "none" | "drift" | "nod" | "check";
-export type FaceMotion = { blink: boolean; glance: boolean; breathe: boolean; loop: FaceLoop; celebrate: boolean; react: boolean };
-const STILL: FaceMotion = { blink: false, glance: false, breathe: false, loop: "none", celebrate: false, react: false };
+export type FaceMotion = { blink: boolean; glance: boolean; breathe: boolean; loop: FaceLoop; celebrate: boolean };
+const STILL: FaceMotion = { blink: false, glance: false, breathe: false, loop: "none", celebrate: false };
 
 /** What may move for a mood. Reduce Motion: nothing (the pose alone carries the state). Inactive
  *  (backgrounded / screen hidden / `animate` off): nothing ambient either. */
@@ -83,13 +89,13 @@ export function faceMotion(m: FaceMood, o: { reduced: boolean; active: boolean }
   const p = motionPolicy(o);
   if (!p.ambient) return STILL;
   switch (m) {
-    case "idle": return { ...STILL, blink: true, glance: true, breathe: true, react: true };
-    case "listening": return { ...STILL, blink: true, breathe: true, react: true };
-    case "thinking": return { ...STILL, blink: true, loop: "drift", react: true };
-    case "working": return { ...STILL, blink: true, loop: "nod", react: true };
-    case "waiting": return { ...STILL, blink: true, breathe: true, loop: "check", react: true };
-    case "success": return { ...STILL, celebrate: true, react: true };
-    case "error": return { ...STILL, blink: true, breathe: true, react: true };
+    case "idle": return { ...STILL, blink: true, glance: true, breathe: true };
+    case "listening": return { ...STILL, blink: true, breathe: true };
+    case "thinking": return { ...STILL, blink: true, loop: "drift" };
+    case "working": return { ...STILL, blink: true, loop: "nod" };
+    case "waiting": return { ...STILL, blink: true, breathe: true, loop: "check" };
+    case "success": return { ...STILL, celebrate: true };
+    case "error": return { ...STILL, blink: true, breathe: true };
   }
 }
 

@@ -1,10 +1,9 @@
-// Design tokens for Hermes Mobile: a dark, low-contrast look (black canvas, grey text, one blue
-// accent for links) with Inter as the only typeface. Spacing is on a 4-point grid.
+// Design tokens for Hermes Mobile: a dark canvas, warm accent, neutral text and Inter type. Spacing is on a 4-point grid.
 
 const light = {
   canvas: "#fffaf2", surface: "#ffffff", floating: "#fffdf9", control: "#f4efe7", controlActive: "#eae1f5",
   border: "#e8e0d5", borderStrong: "#d8cdbf", text: "#171525", textSecondary: "#48465a", muted: "#6f6b7d", dim: "#777386",
-  accentText: "#6841d9", action: "#7447ed", actionForeground: "#ffffff", star: "#e5a800", danger: "#c83d42", success: "#159b72", warning: "#a46600",
+  accentText: "#98520c", action: "#c16b1b", actionForeground: "#ffffff", star: "#d58a16", danger: "#c83d42", success: "#159b72", warning: "#a46600",
   userBubble: "#f4e7d7", botBubble: "#f1eafa", scrim: "rgba(15,12,25,0.48)",
 };
 const dark = {
@@ -19,13 +18,13 @@ const dark = {
   textSecondary: "#c4c4ca",
   muted: "#9696a0",
   dim: "#7c7c86",              // timestamps, hints (4.5:1 on canvas)
-  accentText: "#8fb3ff",      // links and tappable text
-  action: "#f2f2f4",          // send button and primary buttons
-  actionForeground: "#09090b",
-  star: "#f4c152",
+  accentText: "#f0b35b",      // links and tappable text
+  action: "#e79a3c",          // send button and primary buttons
+  actionForeground: "#211407",
+  star: "#f0b35b",
   danger: "#ff6464",
   success: "#46d27f",
-  warning: "#f5b729",
+  warning: "#f0b35b",
   userBubble: "#222227",
   botBubble: "#131316",
   scrim: "rgba(0,0,0,0.62)",
