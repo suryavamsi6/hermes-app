@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Appearance, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppProvider, useApp } from "../src/app-state";
 import { clearBotNotifications, ensureNotifications, onNotificationTap } from "../src/notify";
 import { colors, setTheme } from "../src/ui/theme";
@@ -62,6 +63,7 @@ export default function RootLayout() {
   });
   if (!loaded) return <View style={{ flex: 1, backgroundColor: colors.canvas }} />;
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <AppProvider>
         <NotificationTaps />
@@ -75,5 +77,6 @@ export default function RootLayout() {
         <AppLock />
       </AppProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

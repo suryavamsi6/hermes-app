@@ -1,6 +1,6 @@
 {
   "name": "hermes-mobile",
-  "version": "0.11.11",
+  "version": "0.11.12",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -8,7 +8,7 @@
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
     "pretest": "node scripts/restore-slash.mjs && node scripts/restore-app-state.mjs && node scripts/restore-bubble.mjs && npx -y esbuild@0.24.0 --version",
-    "test": "node --test test/sse.test.mjs test/run-stream.test.mjs test/v080.test.mjs test/backend.test.mjs test/client.test.mjs test/live.test.mjs test/home.test.mjs test/bridge.test.mjs test/md.test.mjs test/chat-tools.test.mjs test/safety.test.mjs test/list-rows.test.mjs test/chat-follow.test.mjs test/status-line.test.mjs test/slash.test.mjs test/ghost.test.mjs test/face.test.mjs test/steps-pill.test.mjs"
+    "test": "node --test test/sse.test.mjs test/run-stream.test.mjs test/v080.test.mjs test/backend.test.mjs test/client.test.mjs test/live.test.mjs test/home.test.mjs test/attention.test.mjs test/attention-geometry.test.mjs test/bridge.test.mjs test/md.test.mjs test/chat-tools.test.mjs test/safety.test.mjs test/list-rows.test.mjs test/chat-follow.test.mjs test/status-line.test.mjs test/slash.test.mjs test/ghost.test.mjs test/face.test.mjs test/steps-pill.test.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~58.0.15",
