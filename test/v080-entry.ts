@@ -7,3 +7,6 @@ export { activityLine, toolPhrase, idleKind, idlePool, nextPhrase, phraseDelay, 
 export { groupModels } from "../src/ui/model-groups";
 export { inQuietHours, parsePrefs, shouldNotify, DEFAULT_PREFS } from "../src/prefs-core";
 export { activityLog, currentPlan } from "../src/activity-log";
+export { withKeptSteps } from "../src/steps-from-history";
+export { loadTurns, preserveHistoryIds, historyRefreshCanApply } from "../src/history-turns";
+export { stepsFromHistory } from "../src/steps-from-history";
