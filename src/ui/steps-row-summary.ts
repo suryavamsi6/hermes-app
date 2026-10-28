@@ -1,8 +1,10 @@
 import type { Step } from "../chat-model";
 
-/** "3 steps · terminal, web_search" (first three distinct tools, then "+n"). */
 export function summary(steps: Step[]): string {
+  if (!steps.length) return "No steps";
   const tools = [...new Set(steps.map((s) => s.tool))];
   const shown = tools.slice(0, 3).join(", ") + (tools.length > 3 ? ` +${tools.length - 3}` : "");
-  return `${steps.length} ${steps.length === 1 ? "step" : "steps"} · ${shown}`;
+  const state = steps.some((s) => s.status === "failed") ? "failed"
+    : steps.some((s) => s.status === "running") ? "running" : "done";
+  return `${steps.length} ${steps.length === 1 ? "step" : "steps"} · ${state} · ${shown}`;
 }

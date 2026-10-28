@@ -12,7 +12,7 @@ import { colors, font, radii, type } from "./theme";
 
 type Choice = ApprovalChoice;
 
-/** Shows exactly what will run (the full command or target), then Deny / Edit / Allow once, plus
+/** Shows exactly what will run (the full command or target), then Deny / Edit / Allow, plus
  *  "Allow for this chat" and "Always allow" (Hermes adds it to the allowlist). Edit denies the call and
  *  puts the command in the composer so you can say what to do instead. */
 export function ApprovalCard({ approval, respond, onEdit }: { approval: Approval; respond: (c: Choice) => Promise<void>; onEdit?: (detail: string) => void }) {
@@ -49,7 +49,7 @@ export function ApprovalCard({ approval, respond, onEdit }: { approval: Approval
       <View style={{ flexDirection: "row", gap: 8 }}>
         <ChoiceButton label="Deny" busy={sending === "deny"} disabled={busy} onPress={() => answer("deny")} />
         {onEdit ? <ChoiceButton label="Edit" busy={false} disabled={busy} onPress={() => { void answer("deny"); onEdit(approval.detail ?? approval.title); }} /> : null}
-        <ChoiceButton label="Allow once" primary busy={sending === "once"} disabled={busy} onPress={() => answer("once")} />
+        <ChoiceButton label="Allow" primary busy={sending === "once"} disabled={busy} onPress={() => answer("once")} />
       </View>
       <View style={{ flexDirection: "row", gap: 8, justifyContent: "center" }}>
         <LinkChoice label="Allow for this chat" busy={sending === "session"} disabled={busy} onPress={() => answer("session")} />
@@ -66,7 +66,7 @@ function ChoiceButton({ label, primary, busy, disabled, onPress }: { label: stri
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, busy }} disabled={disabled} onPress={onPress}
       style={({ pressed }) => ({ flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.chip,
         opacity: disabled && !busy ? 0.45 : 1, transform: [{ scale: pressed ? 0.97 : 1 }],
-        backgroundColor: primary ? (pressed ? "#d9d9de" : colors.action) : pressed ? colors.controlActive : colors.control })}>
+        backgroundColor: primary ? (pressed ? colors.accentText : colors.action) : pressed ? colors.controlActive : colors.control })}>
       {busy ? <ActivityIndicator size="small" color={fg} /> : <Text style={{ fontFamily: font.semibold, fontSize: 14.5, color: fg }}>{label}</Text>}
     </Pressable>
   );
@@ -75,8 +75,8 @@ function ChoiceButton({ label, primary, busy, disabled, onPress }: { label: stri
 function LinkChoice({ label, busy, disabled, onPress }: { label: string; busy: boolean; disabled: boolean; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, busy }} disabled={disabled} onPress={onPress}
-      style={({ pressed }) => ({ minHeight: 36, paddingHorizontal: 12, justifyContent: "center", borderRadius: 999, opacity: disabled && !busy ? 0.45 : 1, backgroundColor: pressed ? colors.control : "transparent" })}>
-      {busy ? <ActivityIndicator size="small" color={colors.accentText} /> : <Text style={[type.label, { color: colors.accentText }]}>{label}</Text>}
+      style={({ pressed }) => ({ minHeight: 40, paddingHorizontal: 12, justifyContent: "center", borderRadius: 999, opacity: disabled && !busy ? 0.45 : 1, backgroundColor: pressed ? colors.control : "transparent" })}>
+      {busy ? <ActivityIndicator size="small" color={colors.muted} /> : <Text style={[type.label, { color: colors.textSecondary }]}>{label}</Text>}
     </Pressable>
   );
 }
